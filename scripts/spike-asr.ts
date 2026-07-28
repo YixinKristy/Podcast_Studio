@@ -69,14 +69,19 @@ async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions): Promise<T
         throw err;
       }
       const delay = baseDelay * 2 ** attempt;
-      console.warn(`  ${opts.label} 失败（第 ${attempt + 1} 次），${delay}ms 后重试：${describeError(err)}`);
+      console.warn(
+        `  ${opts.label} 失败（第 ${attempt + 1} 次），${delay}ms 后重试：${describeError(err)}`,
+      );
       await sleep(delay);
     }
   }
   throw lastErr;
 }
 
-async function fetchJson(url: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<unknown> {
+async function fetchJson(
+  url: string,
+  init: RequestInit & { timeoutMs?: number } = {},
+): Promise<unknown> {
   const { timeoutMs = 30_000, ...rest } = init;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -114,10 +119,14 @@ interface ProbeResult {
 
 async function probeAudio(filePath: string): Promise<ProbeResult> {
   const { stdout } = await runBinary("ffprobe", [
-    "-v", "error",
-    "-print_format", "json",
-    "-select_streams", "a:0",
-    "-show_entries", "stream=channels,sample_rate,codec_name:format=duration",
+    "-v",
+    "error",
+    "-print_format",
+    "json",
+    "-select_streams",
+    "a:0",
+    "-show_entries",
+    "stream=channels,sample_rate,codec_name:format=duration",
     filePath,
   ]);
   const parsed = JSON.parse(stdout);
@@ -160,7 +169,10 @@ function createOssClient(): OSS {
   });
 }
 
-async function uploadAndSign(client: OSS, filePath: string): Promise<{ objectKey: string; signedUrl: string }> {
+async function uploadAndSign(
+  client: OSS,
+  filePath: string,
+): Promise<{ objectKey: string; signedUrl: string }> {
   const objectKey = `spike-asr/${Date.now()}-${path.basename(filePath)}`;
   await withRetry(() => client.put(objectKey, filePath), { label: "OSS 上传" });
   // 24h 有效，够 Fun-ASR 在任务窗口内多次拉取
@@ -184,7 +196,8 @@ function authHeaders(): Record<string, string> {
 
 // 官方文档未在 docs/12 中给出提交接口的具体路径后缀，这里按 DashScope 异步 ASR 的通用形状假设；
 // 如百炼控制台文档给出的路径不同，可通过 DASHSCOPE_ASR_SUBMIT_PATH 覆盖，不用改代码。
-const ASR_SUBMIT_PATH = process.env.DASHSCOPE_ASR_SUBMIT_PATH ?? "/services/audio/asr/transcription";
+const ASR_SUBMIT_PATH =
+  process.env.DASHSCOPE_ASR_SUBMIT_PATH ?? "/services/audio/asr/transcription";
 
 interface SubmitResponse {
   output?: { task_id?: string };
@@ -247,7 +260,9 @@ async function pollTask(taskId: string): Promise<{ transcriptionUrl: string }> {
 
   for (;;) {
     if (Date.now() - startedAt > maxWaitMs) {
-      throw new SpikeError(`转写任务轮询超时（超过 ${maxWaitMs / 60_000} 分钟），task_id=${taskId}`);
+      throw new SpikeError(
+        `转写任务轮询超时（超过 ${maxWaitMs / 60_000} 分钟），task_id=${taskId}`,
+      );
     }
     const json = (await withRetry(
       () => fetchJson(`${baseUrl}/tasks/${taskId}`, { method: "GET", headers: authHeaders() }),
@@ -263,7 +278,9 @@ async function pollTask(taskId: string): Promise<{ transcriptionUrl: string }> {
       return { transcriptionUrl };
     }
     if (status === "FAILED") {
-      throw new SpikeError(`转写任务失败：${json.output?.message ?? json.output?.code ?? "未知原因"}（task_id=${taskId}）`);
+      throw new SpikeError(
+        `转写任务失败：${json.output?.message ?? json.output?.code ?? "未知原因"}（task_id=${taskId}）`,
+      );
     }
     const waitedSec = Math.round((Date.now() - startedAt) / 1000);
     process.stdout.write(`\r  任务状态：${status ?? "UNKNOWN"}（已等待 ${waitedSec}s）`);
@@ -278,7 +295,9 @@ async function downloadTranscript(url: string): Promise<unknown> {
   } catch (err) {
     const status = err instanceof HttpError ? err.status : undefined;
     if (status === 403 || status === 404) {
-      throw new SpikeError("结果 URL 已过期或无法访问（transcription_url 仅 24 小时有效），需要重新提交转写任务");
+      throw new SpikeError(
+        "结果 URL 已过期或无法访问（transcription_url 仅 24 小时有效），需要重新提交转写任务",
+      );
     }
     throw err;
   }
@@ -299,7 +318,12 @@ function extractSentences(raw: unknown): Sentence[] {
   for (const transcript of transcripts) {
     const rawSentences = (transcript as { sentences?: unknown[] })?.sentences ?? [];
     for (const s of rawSentences) {
-      const sentence = s as { begin_time: number; end_time: number; text?: string; speaker_id?: string | number };
+      const sentence = s as {
+        begin_time: number;
+        end_time: number;
+        text?: string;
+        speaker_id?: string | number;
+      };
       sentences.push({
         beginTimeMs: Number(sentence.begin_time),
         endTimeMs: Number(sentence.end_time),
@@ -314,13 +338,17 @@ function extractSentences(raw: unknown): Sentence[] {
 
 function formatTimestamp(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
-  const mm = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
+  const mm = Math.floor(totalSeconds / 60)
+    .toString()
+    .padStart(2, "0");
   const ss = (totalSeconds % 60).toString().padStart(2, "0");
   return `${mm}:${ss}`;
 }
 
 function formatReadableTranscript(sentences: Sentence[]): string {
-  return sentences.map((s) => `[说话人${s.speakerId ?? "?"}][${formatTimestamp(s.beginTimeMs)}] ${s.text}`).join("\n");
+  return sentences
+    .map((s) => `[说话人${s.speakerId ?? "?"}][${formatTimestamp(s.beginTimeMs)}] ${s.text}`)
+    .join("\n");
 }
 
 function checkForMaskedText(sentences: Sentence[]): void {

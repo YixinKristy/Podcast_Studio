@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+build
+output
+.spike-asr-tmp
+.trigger
+playwright-report
+test-results
+package-lock.json
+docs/**
+CLAUDE.md

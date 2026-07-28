@@ -8,7 +8,10 @@ import type { spikeQueueValidation } from "../trigger/spike-queue.ts";
 
 async function main(): Promise<void> {
   console.log("触发 spike-queue-validation 任务...");
-  const handle = await tasks.trigger<typeof spikeQueueValidation>("spike-queue-validation", undefined);
+  const handle = await tasks.trigger<typeof spikeQueueValidation>(
+    "spike-queue-validation",
+    undefined,
+  );
   console.log(`run id = ${handle.id}，等待完成...`);
 
   for await (const run of runs.subscribeToRun<typeof spikeQueueValidation>(handle.id)) {

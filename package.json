@@ -5,15 +5,20 @@
   "type": "module",
   "scripts": {
     "spike-asr": "tsx scripts/spike-asr.ts",
+    "spike-queue": "tsx scripts/spike-queue.ts",
+    "trigger:dev": "trigger.dev dev --env-file .env.local",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@trigger.dev/sdk": "^4.5.8",
     "ali-oss": "^6.20.0",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
+    "@trigger.dev/build": "^4.5.8",
     "@types/ali-oss": "^6.16.11",
     "@types/node": "^20.14.9",
+    "trigger.dev": "^4.5.8",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"
   }

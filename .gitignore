@@ -2,3 +2,5 @@
 node_modules/
 output/
 .spike-asr-tmp/
+.trigger
+.DS_Store

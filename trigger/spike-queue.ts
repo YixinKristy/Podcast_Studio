@@ -24,8 +24,10 @@ export const spikeQueueValidation = task({
     const outputPath = "/tmp/spike-queue-test-tone.wav";
     await execFileAsync(ffmpegPath, [
       "-y",
-      "-f", "lavfi",
-      "-i", "sine=frequency=440:duration=2",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:duration=2",
       outputPath,
     ]);
     const outputStat = await stat(outputPath);

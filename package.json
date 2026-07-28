@@ -1,0 +1,20 @@
+{
+  "name": "podcast-studio",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "spike-asr": "tsx scripts/spike-asr.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ali-oss": "^6.20.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/ali-oss": "^6.16.11",
+    "@types/node": "^20.14.9",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  }
+}

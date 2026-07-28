@@ -20,15 +20,15 @@ npm run dev
 
 ## 常用命令
 
-| 命令 | 作用 |
-|------|------|
-| `npm run dev` | 本地开发服务器（Turbopack） |
-| `npm run build` | 生产构建（这台机器上 `--turbopack` 构建会因 lightningcss 原生模块问题失败，`build` 用的是普通 webpack 构建；`dev` 不受影响，继续用 Turbopack） |
-| `npm run lint` | ESLint |
-| `npm run format` / `format:write` | Prettier 检查 / 自动格式化 |
-| `npm run typecheck` | TypeScript 严格模式类型检查 |
-| `npm run test` | Vitest 单测 |
-| `npm run test:e2e` | Playwright E2E（首次需要 `npx playwright install --with-deps chromium`） |
+| 命令                              | 作用                                                                                                                                           |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                     | 本地开发服务器（Turbopack）                                                                                                                    |
+| `npm run build`                   | 生产构建（这台机器上 `--turbopack` 构建会因 lightningcss 原生模块问题失败，`build` 用的是普通 webpack 构建；`dev` 不受影响，继续用 Turbopack） |
+| `npm run lint`                    | ESLint                                                                                                                                         |
+| `npm run format` / `format:write` | Prettier 检查 / 自动格式化                                                                                                                     |
+| `npm run typecheck`               | TypeScript 严格模式类型检查                                                                                                                    |
+| `npm run test`                    | Vitest 单测                                                                                                                                    |
+| `npm run test:e2e`                | Playwright E2E（首次需要 `npx playwright install --with-deps chromium`）                                                                       |
 
 ## 独立验证脚本（不属于主应用）
 

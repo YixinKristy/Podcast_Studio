@@ -28,7 +28,20 @@ npm run dev
 | `npm run format` / `format:write` | Prettier 检查 / 自动格式化                                                                                                                     |
 | `npm run typecheck`               | TypeScript 严格模式类型检查                                                                                                                    |
 | `npm run test`                    | Vitest 单测                                                                                                                                    |
+| `npm run test:integration`        | Supabase RLS 越权测试，需要真实项目凭证（见下面「数据库」）                                                                                    |
 | `npm run test:e2e`                | Playwright E2E（首次需要 `npx playwright install --with-deps chromium`）                                                                       |
+
+## 数据库
+
+Schema 用 Supabase CLI 管理，迁移文件在 `supabase/migrations/`。
+
+```bash
+SUPABASE_ACCESS_TOKEN=<个人访问令牌> supabase link --project-ref <project ref> --password '<数据库密码>'
+SUPABASE_ACCESS_TOKEN=<个人访问令牌> supabase db push          # 应用迁移
+SUPABASE_ACCESS_TOKEN=<个人访问令牌> supabase gen types typescript --linked > lib/db/database.types.ts
+```
+
+个人访问令牌在 [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens) 生成。这台机器没装 Docker，所以本地开发和 RLS 测试都是直接连真实项目，不是 `supabase start` 本地栈——`npm run test:integration` 会真的在项目里建两个测试用户验证越权，跑完自动清理。
 
 ## 独立验证脚本（不属于主应用）
 
@@ -47,10 +60,11 @@ jobs/           # 异步任务（转写/生成/切片）
 prompts/        # LLM prompt 模板，独立于代码，可版本化
 scripts/        # 独立验证脚本（spike-asr、spike-queue），不进主应用
 trigger/        # Trigger.dev 任务定义
-tests/          # unit(Vitest) / fixtures(回归测试样本) / e2e(Playwright)
+tests/          # unit(Vitest) / integration(RLS 等需要真实凭证的测试) / fixtures(回归测试样本) / e2e(Playwright)
 docs/           # 产品规格文档 + 技术决策记录（docs/decisions/）
+supabase/       # 数据库迁移文件（supabase/migrations/）+ CLI 配置
 ```
 
 ## CI
 
-GitHub Actions（`.github/workflows/ci.yml`）在每个 PR 上跑三项门禁：`lint`、`typecheck`、`test`（Vitest 单测）。
+GitHub Actions（`.github/workflows/ci.yml`）在每个 PR 上跑四项门禁：`lint`、`typecheck`、`test`（Vitest 单测）、`test-integration`（Supabase RLS，走仓库 secrets 里的真实项目凭证）。

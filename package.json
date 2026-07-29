@@ -12,6 +12,7 @@
     "format:write": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "spike-asr": "tsx scripts/spike-asr.ts",
     "spike-queue": "tsx scripts/spike-queue.ts",
@@ -19,6 +20,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@supabase/supabase-js": "^2.111.0",
     "@trigger.dev/sdk": "^4.5.8",
     "ali-oss": "^6.20.0",
     "class-variance-authority": "^0.7.1",

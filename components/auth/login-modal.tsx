@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -12,101 +13,106 @@ interface LoginModalProps {
   next?: string;
 }
 
-type Status = "idle" | "sending" | "sent" | "error";
+type Mode = "login" | "register";
+type Status = "idle" | "submitting";
 
 export function LoginModal({ open, onOpenChange, next }: LoginModalProps) {
+  const router = useRouter();
+  const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string | null>(null);
-  const [cooldown, setCooldown] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [lockedSeconds, setLockedSeconds] = useState(0);
 
   useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
+    if (lockedSeconds <= 0) return;
+    const timer = setTimeout(() => setLockedSeconds((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [lockedSeconds]);
 
-  function startCooldown(seconds: number) {
-    setCooldown(seconds);
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setCooldown((s) => {
-        if (s <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-  }
-
-  async function sendLink() {
-    setStatus("sending");
+  async function submit() {
+    setStatus("submitting");
     setMessage(null);
     try {
-      const res = await fetch("/api/auth/send-link", {
+      const res = await fetch(`/api/auth/${mode === "login" ? "sign-in" : "sign-up"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, next }),
+        body: JSON.stringify({ email, password }),
       });
       const json = await res.json();
 
       if (!res.ok) {
-        setStatus("error");
-        setMessage(json.error ?? "发送失败，稍后再试");
+        setStatus("idle");
+        setMessage(json.error ?? "出错了，稍后再试");
         if (typeof json.retryAfterSeconds === "number") {
-          startCooldown(json.retryAfterSeconds);
+          setLockedSeconds(json.retryAfterSeconds);
         }
         return;
       }
 
-      setStatus("sent");
-      setMessage(
-        json.hintSwitchEmail
-          ? "邮件发送成功，查收一下（含垃圾箱）。如果多次没收到，换个邮箱试试"
-          : "邮件发送成功，去邮箱里点登录链接吧（含垃圾箱）",
-      );
-      startCooldown(60);
+      // 注册接口内部也是 supabase.auth.signUp，project 开了 autoconfirm，
+      // 注册成功即已建立 session，跟登录成功一样直接跳转，不用再多登录一次
+      onOpenChange(false);
+      router.push(next ?? "/new");
+      router.refresh();
     } catch {
-      setStatus("error");
+      setStatus("idle");
       setMessage("网络好像有问题，稍后再试");
     }
   }
 
-  const canSend = email.includes("@") && cooldown === 0 && status !== "sending";
+  const canSubmit =
+    email.includes("@") && password.length >= 6 && status !== "submitting" && lockedSeconds === 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[360px]">
         <DialogHeader>
-          <DialogTitle>登录 / 注册</DialogTitle>
+          <DialogTitle>{mode === "login" ? "登录" : "注册"}</DialogTitle>
         </DialogHeader>
-        <p className="text-muted-foreground text-sm">邮箱登录，无密码，输入邮箱即可注册</p>
-        <div className="mt-3 space-y-2">
-          <Label htmlFor="login-email">邮箱</Label>
-          <Input
-            id="login-email"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+        <div className="mt-1 space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="login-email">邮箱</Label>
+            <Input
+              id="login-email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="login-password">密码</Label>
+            <Input
+              id="login-password"
+              type="password"
+              placeholder="至少 6 位"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
         </div>
-        <Button className="mt-4 w-full" disabled={!canSend} onClick={sendLink}>
-          {cooldown > 0
-            ? `重新发送(${cooldown}s)`
-            : status === "sending"
-              ? "发送中..."
-              : "发送登录链接"}
+        <Button className="mt-4 w-full" disabled={!canSubmit} onClick={submit}>
+          {lockedSeconds > 0
+            ? `已锁定，${Math.ceil(lockedSeconds / 60)} 分钟后再试`
+            : status === "submitting"
+              ? "处理中..."
+              : mode === "login"
+                ? "登录"
+                : "注册"}
         </Button>
-        {message && (
-          <p
-            className={`mt-3 text-sm ${status === "error" ? "text-destructive" : "text-muted-foreground"}`}
-          >
-            {message}
-          </p>
-        )}
+        <button
+          type="button"
+          className="text-muted-foreground mt-2 text-sm underline"
+          onClick={() => {
+            setMode(mode === "login" ? "register" : "login");
+            setMessage(null);
+          }}
+        >
+          {mode === "login" ? "没有账号？注册一个" : "已有账号？去登录"}
+        </button>
+        {message && <p className="text-destructive mt-2 text-sm">{message}</p>}
       </DialogContent>
     </Dialog>
   );

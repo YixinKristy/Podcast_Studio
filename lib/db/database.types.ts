@@ -33,6 +33,30 @@ export type Database = {
   };
   public: {
     Tables: {
+      auth_email_challenges: {
+        Row: {
+          attempt_count: number;
+          email: string;
+          last_sent_at: string | null;
+          locked_until: string | null;
+          window_started_at: string;
+        };
+        Insert: {
+          attempt_count?: number;
+          email: string;
+          last_sent_at?: string | null;
+          locked_until?: string | null;
+          window_started_at?: string;
+        };
+        Update: {
+          attempt_count?: number;
+          email?: string;
+          last_sent_at?: string | null;
+          locked_until?: string | null;
+          window_started_at?: string;
+        };
+        Relationships: [];
+      };
       episodes: {
         Row: {
           audio_url: string | null;

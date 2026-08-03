@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,7 @@ export function EpisodeInfoCard({
   episodeId,
   onStartGenerate,
 }: EpisodeInfoCardProps) {
+  const router = useRouter();
   const [promoteNote, setPromoteNote] = useState("");
   const [guestName, setGuestName] = useState("");
   const [materials, setMaterials] = useState<string[]>(ALL_MATERIALS);
@@ -61,8 +63,16 @@ export function EpisodeInfoCard({
         setMessage("保存失败，稍后再试");
         return;
       }
-      setMessage("已保存。转写和物料生成流程还在开发中，敬请期待");
+
+      const startRes = await fetch(`/api/episodes/${episodeId}/start`, { method: "POST" });
+      if (!startRes.ok) {
+        const json = await startRes.json().catch(() => ({}));
+        setMessage(json.error ?? "开始生成失败，稍后再试");
+        return;
+      }
+
       onStartGenerate?.();
+      router.push(`/e/${episodeId}`);
     } finally {
       setSaving(false);
     }

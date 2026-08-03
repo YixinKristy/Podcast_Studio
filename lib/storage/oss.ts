@@ -31,3 +31,11 @@ export function getSignedDownloadUrl(objectKey: string, expiresInSeconds = 3600)
 export function getSignedUploadUrl(objectKey: string, expiresInSeconds = 3600): string {
   return getOssClient().signatureUrl(objectKey, { expires: expiresInSeconds, method: "PUT" });
 }
+
+export function objectKeyFromUrl(url: string): string {
+  const base = `https://${process.env.ALIYUN_OSS_BUCKET}.${process.env.ALIYUN_OSS_REGION}.aliyuncs.com/`;
+  if (!url.startsWith(base)) {
+    throw new Error(`不是这个 bucket 的 URL: ${url}`);
+  }
+  return url.slice(base.length);
+}

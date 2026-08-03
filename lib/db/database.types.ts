@@ -67,10 +67,12 @@ export type Database = {
           generate_materials: Json;
           guests: Json;
           id: string;
+          low_confidence: boolean;
           promote_note: string | null;
           published_at: string | null;
           show_id: string;
           source_type: Database["public"]["Enums"]["episode_source_type"];
+          speaker_count: number | null;
           status: Database["public"]["Enums"]["episode_status"];
           transcript: Json | null;
         };
@@ -83,10 +85,12 @@ export type Database = {
           generate_materials?: Json;
           guests?: Json;
           id?: string;
+          low_confidence?: boolean;
           promote_note?: string | null;
           published_at?: string | null;
           show_id: string;
           source_type: Database["public"]["Enums"]["episode_source_type"];
+          speaker_count?: number | null;
           status?: Database["public"]["Enums"]["episode_status"];
           transcript?: Json | null;
         };
@@ -99,10 +103,12 @@ export type Database = {
           generate_materials?: Json;
           guests?: Json;
           id?: string;
+          low_confidence?: boolean;
           promote_note?: string | null;
           published_at?: string | null;
           show_id?: string;
           source_type?: Database["public"]["Enums"]["episode_source_type"];
+          speaker_count?: number | null;
           status?: Database["public"]["Enums"]["episode_status"];
           transcript?: Json | null;
         };

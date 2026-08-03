@@ -158,8 +158,21 @@ export function MaterialTab({ episodeId, type, material }: MaterialTabProps) {
     }
   }
 
-  if (status === "pending" || status === "generating") {
+  if (status === "generating") {
     return <p className="text-muted-foreground text-sm">生成中...</p>;
+  }
+
+  // material 为 null 说明这个类型还从来没触发过生成——可能是转写完成时的自动触发链路
+  // 没覆盖到（比如这期是功能上线前就转写完的老 episode），不能一直卡在无操作的状态
+  if (status === "pending") {
+    return (
+      <div>
+        <Button size="sm" onClick={reroll} disabled={busy}>
+          {busy ? "生成中..." : "开始生成"}
+        </Button>
+        {message && <p className="text-destructive mt-2 text-sm">{message}</p>}
+      </div>
+    );
   }
 
   if (status === "failed") {

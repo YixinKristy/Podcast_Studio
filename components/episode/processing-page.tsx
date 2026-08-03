@@ -55,6 +55,7 @@ function currentStageIndex(status: string): number {
 export function ProcessingPage({ episodeId, initialEpisode, showName }: ProcessingPageProps) {
   const [episode, setEpisode] = useState<EpisodeRow>(initialEpisode);
   const [retrying, setRetrying] = useState(false);
+  const [audioPlaybackUrl, setAudioPlaybackUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const startedAtRef = useRef(Date.now());
 
@@ -73,6 +74,16 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
     }, 3000);
     return () => clearInterval(interval);
   }, [episode.status, episodeId]);
+
+  useEffect(() => {
+    // bucket 是私有的，episode.audio_url 存的是不带签名的地址，播放器直接用会 403。
+    // 转写完出现逐字稿之后才需要播放，这时候单独去要一个签名过的下载链接。
+    if (!episode.audio_url || audioPlaybackUrl) return;
+    fetch(`/api/episodes/${episodeId}/audio-url`)
+      .then((res) => res.json())
+      .then((json) => setAudioPlaybackUrl(json.url ?? null))
+      .catch(() => setAudioPlaybackUrl(null));
+  }, [episode.audio_url, audioPlaybackUrl, episodeId]);
 
   async function retry() {
     setRetrying(true);
@@ -159,8 +170,8 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
             </p>
           )}
 
-          {episode.audio_url && (
-            <audio ref={audioRef} controls src={episode.audio_url} className="mb-4 w-full">
+          {audioPlaybackUrl && (
+            <audio ref={audioRef} controls src={audioPlaybackUrl} className="mb-4 w-full">
               <track kind="captions" />
             </audio>
           )}

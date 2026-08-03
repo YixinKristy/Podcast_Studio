@@ -10,7 +10,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { task, logger, wait } from "@trigger.dev/sdk";
+import { task, tasks, logger, wait } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/database.types";
 import { transcribeAudio, FunAsrError } from "@/lib/asr/fun-asr";
@@ -21,6 +21,7 @@ import {
   isLowConfidence,
 } from "@/lib/services/transcript";
 import { refundQuotaForFailure } from "@/lib/services/quota";
+import type { generateMaterials } from "./generate-materials";
 
 const execFileAsync = promisify(execFile);
 
@@ -96,6 +97,7 @@ export const transcribeEpisode = task({
     downloadUrl: string;
     monoUploadUrl: string;
     monoDownloadUrl: string;
+    materialTypes: string[];
   }) => {
     const ffmpegPath = process.env.FFMPEG_PATH ?? "ffmpeg";
     const supabase = getAdminClient();
@@ -181,6 +183,14 @@ export const transcribeEpisode = task({
         .eq("id", payload.episodeId);
 
       logger.info("转写完成", { segments: segments.length, speakerCount, lowConfidence });
+
+      if (payload.materialTypes.length > 0) {
+        await tasks.trigger<typeof generateMaterials>("generate-materials", {
+          episodeId: payload.episodeId,
+          materialTypes: payload.materialTypes,
+        });
+      }
+
       return { ok: true, segments: segments.length };
     } catch (err) {
       logger.error("转写任务异常", {

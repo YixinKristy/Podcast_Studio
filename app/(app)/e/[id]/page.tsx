@@ -9,7 +9,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
   const { data: episode } = await supabase
     .from("episodes")
     .select(
-      "id, status, audio_url, duration_seconds, transcript, speaker_count, low_confidence, episode_no, show_id",
+      "id, status, audio_url, duration_seconds, transcript, speaker_count, low_confidence, episode_no, show_id, generate_materials",
     )
     .eq("id", id)
     .single();

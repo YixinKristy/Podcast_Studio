@@ -57,6 +57,7 @@ export async function POST(
     downloadUrl: getSignedDownloadUrl(objectKey, 2 * 60 * 60),
     monoUploadUrl: getSignedUploadUrl(monoObjectKey, 2 * 60 * 60),
     monoDownloadUrl: getSignedDownloadUrl(monoObjectKey, 2 * 60 * 60),
+    materialTypes: (episode.generate_materials as string[] | null) ?? [],
   });
 
   return NextResponse.json({ ok: true });

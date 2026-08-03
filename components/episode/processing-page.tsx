@@ -5,6 +5,7 @@ import { createClient } from "@/lib/db/supabase/client";
 import { Button } from "@/components/ui/button";
 import type { Database } from "@/lib/db/database.types";
 import type { TranscriptSegment } from "@/lib/services/transcript";
+import { MaterialsPanel } from "./materials-panel";
 
 type EpisodeRow = Pick<
   Database["public"]["Tables"]["episodes"]["Row"],
@@ -16,6 +17,7 @@ type EpisodeRow = Pick<
   | "speaker_count"
   | "low_confidence"
   | "episode_no"
+  | "generate_materials"
 >;
 
 interface ProcessingPageProps {
@@ -66,7 +68,7 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
       const { data } = await supabase
         .from("episodes")
         .select(
-          "id, status, audio_url, duration_seconds, transcript, speaker_count, low_confidence, episode_no",
+          "id, status, audio_url, duration_seconds, transcript, speaker_count, low_confidence, episode_no, generate_materials",
         )
         .eq("id", episodeId)
         .single();
@@ -164,12 +166,6 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
               识别置信度偏低，建议校对后刷新
             </div>
           )}
-          {episode.status === "generating" && (
-            <p className="text-muted-foreground mb-3 text-sm">
-              转写完成，逐字稿可以先看和校对；物料生成还在开发中
-            </p>
-          )}
-
           {audioPlaybackUrl && (
             <audio ref={audioRef} controls src={audioPlaybackUrl} className="mb-4 w-full">
               <track kind="captions" />
@@ -202,6 +198,13 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
               </button>
             ))}
           </div>
+
+          {episode.status === "generating" && (
+            <MaterialsPanel
+              episodeId={episodeId}
+              enabledTypes={(episode.generate_materials as string[] | null) ?? []}
+            />
+          )}
         </div>
       )}
     </div>

@@ -122,6 +122,44 @@ export type Database = {
           },
         ];
       };
+      material_versions: {
+        Row: {
+          content: Json;
+          created_at: string;
+          id: string;
+          instruction: string | null;
+          material_id: string;
+          source: string;
+          version: number;
+        };
+        Insert: {
+          content: Json;
+          created_at?: string;
+          id?: string;
+          instruction?: string | null;
+          material_id: string;
+          source: string;
+          version: number;
+        };
+        Update: {
+          content?: Json;
+          created_at?: string;
+          id?: string;
+          instruction?: string | null;
+          material_id?: string;
+          source?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "material_versions_material_id_fkey";
+            columns: ["material_id"];
+            isOneToOne: false;
+            referencedRelation: "materials";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       materials: {
         Row: {
           confirmed_at: string | null;

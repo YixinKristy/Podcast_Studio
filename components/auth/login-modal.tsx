@@ -54,7 +54,7 @@ export function LoginModal({ open, onOpenChange, next }: LoginModalProps) {
       // 注册接口内部也是 supabase.auth.signUp，project 开了 autoconfirm，
       // 注册成功即已建立 session，跟登录成功一样直接跳转，不用再多登录一次
       onOpenChange(false);
-      router.push(next ?? "/new");
+      router.push(next ?? "/episodes");
       router.refresh();
     } catch {
       setStatus("idle");

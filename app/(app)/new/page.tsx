@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/db/supabase/server";
 import { getOwnShow } from "@/lib/services/show";
 import { nextEpisodeNo } from "@/lib/services/upload";
@@ -12,7 +13,10 @@ export default async function UploadPage() {
 
   return (
     <div>
-      <div className="flex justify-end p-4">
+      <div className="flex items-center justify-between p-4">
+        <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/episodes" />}>
+          ← 我的节目
+        </Button>
         <form action={signOutAction}>
           <Button type="submit" variant="outline" size="sm">
             退出登录

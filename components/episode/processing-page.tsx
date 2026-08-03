@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/db/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -109,7 +110,10 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
 
   return (
     <div className="mx-auto max-w-4xl p-8">
-      <div className="mb-2 text-sm text-muted-foreground">
+      <Link href="/episodes" className="text-muted-foreground text-sm hover:underline">
+        ← 我的节目
+      </Link>
+      <div className="mt-2 mb-2 text-sm text-muted-foreground">
         {showName} · 第 {episode.episode_no} 期
       </div>
 

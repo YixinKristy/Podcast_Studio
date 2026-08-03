@@ -28,6 +28,15 @@ export async function beginTranscription(supabase: SupabaseClient<Database>, epi
     .maybeSingle();
 }
 
+// P5 历史页：按创建时间倒序，最新的在最上面
+export async function listEpisodes(supabase: SupabaseClient<Database>, showId: string) {
+  return supabase
+    .from("episodes")
+    .select("id, episode_no, status, duration_seconds, created_at")
+    .eq("show_id", showId)
+    .order("created_at", { ascending: false });
+}
+
 export async function updateEpisodeInfo(
   supabase: SupabaseClient<Database>,
   episodeId: string,

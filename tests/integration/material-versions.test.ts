@@ -7,7 +7,11 @@ config({ path: ".env.local" });
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/lib/db/database.types";
-import { getOrCreateMaterial, saveNewVersion, restoreVersion } from "@/lib/services/materials/store";
+import {
+  getOrCreateMaterial,
+  saveNewVersion,
+  restoreVersion,
+} from "@/lib/services/materials/store";
 
 const admin = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -71,10 +75,19 @@ describe("物料版本管理", () => {
     const materialId = await getOrCreateMaterial(admin, episodeId, "note");
 
     await saveNewVersion(admin, materialId, { title: "v1", body: "b", hashtags: [] }, "generated");
-    const { version } = await saveNewVersion(admin, materialId, { title: "v2", body: "b", hashtags: [] }, "reroll");
+    const { version } = await saveNewVersion(
+      admin,
+      materialId,
+      { title: "v2", body: "b", hashtags: [] },
+      "reroll",
+    );
     expect(version).toBe(2);
 
-    const { data: material } = await admin.from("materials").select("content, version").eq("id", materialId).single();
+    const { data: material } = await admin
+      .from("materials")
+      .select("content, version")
+      .eq("id", materialId)
+      .single();
     expect(material?.version).toBe(2);
     expect((material?.content as { title: string }).title).toBe("v2");
   });
@@ -89,7 +102,11 @@ describe("物料版本管理", () => {
     const { version } = await restoreVersion(admin, materialId, 1);
     expect(version).toBe(3);
 
-    const { data: material } = await admin.from("materials").select("content").eq("id", materialId).single();
+    const { data: material } = await admin
+      .from("materials")
+      .select("content")
+      .eq("id", materialId)
+      .single();
     expect((material?.content as { title: string }).title).toBe("v1");
   });
 
@@ -98,7 +115,12 @@ describe("物料版本管理", () => {
     const materialId = await getOrCreateMaterial(admin, episodeId, "chapters");
 
     for (let i = 1; i <= 6; i++) {
-      await saveNewVersion(admin, materialId, { chapters: [{ startSeconds: 0, title: `v${i}` }] }, "reroll");
+      await saveNewVersion(
+        admin,
+        materialId,
+        { chapters: [{ startSeconds: 0, title: `v${i}` }] },
+        "reroll",
+      );
     }
 
     const { data: versions } = await admin

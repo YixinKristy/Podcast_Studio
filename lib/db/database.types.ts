@@ -60,10 +60,14 @@ export type Database = {
       episodes: {
         Row: {
           audio_url: string | null;
+          content_hash: string | null;
           created_at: string;
           duration_seconds: number | null;
           episode_no: number | null;
+          generate_materials: Json;
+          guests: Json;
           id: string;
+          promote_note: string | null;
           published_at: string | null;
           show_id: string;
           source_type: Database["public"]["Enums"]["episode_source_type"];
@@ -72,10 +76,14 @@ export type Database = {
         };
         Insert: {
           audio_url?: string | null;
+          content_hash?: string | null;
           created_at?: string;
           duration_seconds?: number | null;
           episode_no?: number | null;
+          generate_materials?: Json;
+          guests?: Json;
           id?: string;
+          promote_note?: string | null;
           published_at?: string | null;
           show_id: string;
           source_type: Database["public"]["Enums"]["episode_source_type"];
@@ -84,10 +92,14 @@ export type Database = {
         };
         Update: {
           audio_url?: string | null;
+          content_hash?: string | null;
           created_at?: string;
           duration_seconds?: number | null;
           episode_no?: number | null;
+          generate_materials?: Json;
+          guests?: Json;
           id?: string;
+          promote_note?: string | null;
           published_at?: string | null;
           show_id?: string;
           source_type?: Database["public"]["Enums"]["episode_source_type"];
@@ -230,6 +242,91 @@ export type Database = {
             columns: ["user_id"];
             isOneToOne: false;
             referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      upload_parts: {
+        Row: {
+          created_at: string;
+          etag: string;
+          part_no: number;
+          upload_session_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          etag: string;
+          part_no: number;
+          upload_session_id: string;
+        };
+        Update: {
+          created_at?: string;
+          etag?: string;
+          part_no?: number;
+          upload_session_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "upload_parts_upload_session_id_fkey";
+            columns: ["upload_session_id"];
+            isOneToOne: false;
+            referencedRelation: "upload_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      upload_sessions: {
+        Row: {
+          chunk_size: number;
+          content_hash: string;
+          created_at: string;
+          expires_at: string;
+          file_name: string;
+          file_size: number;
+          id: string;
+          mime_type: string | null;
+          oss_object_key: string;
+          oss_upload_id: string;
+          show_id: string;
+          status: string;
+          total_chunks: number;
+        };
+        Insert: {
+          chunk_size: number;
+          content_hash: string;
+          created_at?: string;
+          expires_at?: string;
+          file_name: string;
+          file_size: number;
+          id?: string;
+          mime_type?: string | null;
+          oss_object_key: string;
+          oss_upload_id: string;
+          show_id: string;
+          status?: string;
+          total_chunks: number;
+        };
+        Update: {
+          chunk_size?: number;
+          content_hash?: string;
+          created_at?: string;
+          expires_at?: string;
+          file_name?: string;
+          file_size?: number;
+          id?: string;
+          mime_type?: string | null;
+          oss_object_key?: string;
+          oss_upload_id?: string;
+          show_id?: string;
+          status?: string;
+          total_chunks?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "upload_sessions_show_id_fkey";
+            columns: ["show_id"];
+            isOneToOne: false;
+            referencedRelation: "shows";
             referencedColumns: ["id"];
           },
         ];

@@ -15,6 +15,19 @@ export interface UpdateEpisodeInfoInput {
 
 // P2 本期信息卡：核心主输入（promoteNote）+ 折叠区（guests/generateMaterials），
 // 任务 1.7 生成物料时会读这些字段喂给 prompt
+// 幂等/防并发的把关点：只有 uploaded（首次）或 transcribe_failed（重试）能进 transcribing。
+// 用条件 UPDATE 而不是先查再写——两个并发请求（比如手滑点两下按钮）只有一个能改到行，
+// 另一个 rows.length===0，直接拒绝，不会都往下走触发两次转写任务和两次扣额度。
+export async function beginTranscription(supabase: SupabaseClient<Database>, episodeId: string) {
+  return supabase
+    .from("episodes")
+    .update({ status: "transcribing" })
+    .eq("id", episodeId)
+    .in("status", ["uploaded", "transcribe_failed"])
+    .select("id, audio_url")
+    .maybeSingle();
+}
+
 export async function updateEpisodeInfo(
   supabase: SupabaseClient<Database>,
   episodeId: string,

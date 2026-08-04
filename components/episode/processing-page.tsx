@@ -63,7 +63,9 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
   const startedAtRef = useRef(Date.now());
 
   useEffect(() => {
-    if (episode.status !== "transcribing") return;
+    // generating 也要继续轮询——物料全部跑完后服务端会把状态迁移成 ready，
+    // 轮询在这一步停掉的话页面永远看不到这个变化
+    if (episode.status !== "transcribing" && episode.status !== "generating") return;
     const supabase = createClient();
     const interval = setInterval(async () => {
       const { data } = await supabase
@@ -111,7 +113,7 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
   const elapsedSeconds = Math.round((Date.now() - startedAtRef.current) / 1000);
 
   return (
-    <div className="mx-auto max-w-4xl p-8">
+    <div className="mx-auto max-w-6xl p-8">
       <Link href="/episodes" className="text-muted-foreground text-sm hover:underline">
         ← 我的节目
       </Link>
@@ -163,52 +165,60 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
         </div>
       )}
 
+      {/* P4 发布台布局：逐字稿是常驻参考栏，不是转写完顺手往下堆的一段内容——
+          左边固定住方便边看逐字稿边核对右边物料，不用来回滚动一个很长的单栏页面 */}
       {segments.length > 0 && (
-        <div className="mt-6">
-          {episode.low_confidence && (
-            <div className="mb-3 rounded-md bg-yellow-50 px-4 py-2 text-sm text-yellow-800">
-              识别置信度偏低，建议校对后刷新
-            </div>
-          )}
-          {audioPlaybackUrl && (
-            <audio ref={audioRef} controls src={audioPlaybackUrl} className="mb-4 w-full">
-              <track kind="captions" />
-            </audio>
-          )}
+        <div className="mt-6 grid gap-6 md:grid-cols-5">
+          <div className="md:sticky md:top-6 md:col-span-2 md:self-start">
+            {episode.low_confidence && (
+              <div className="mb-3 rounded-md bg-yellow-50 px-4 py-2 text-sm text-yellow-800">
+                识别置信度偏低，建议校对后刷新
+              </div>
+            )}
+            {audioPlaybackUrl && (
+              <audio ref={audioRef} controls src={audioPlaybackUrl} className="mb-4 w-full">
+                <track kind="captions" />
+              </audio>
+            )}
 
-          <div className="max-h-[60vh] space-y-1 overflow-y-auto rounded-xl border p-4">
-            {segments.map((seg, i) => (
-              <button
-                key={i}
-                type="button"
-                className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
-                onClick={() => {
-                  if (audioRef.current) {
-                    audioRef.current.currentTime = seg.start;
-                    void audioRef.current.play();
-                  }
-                }}
-              >
-                {showSpeakerLabels && (
-                  <span
-                    className="mr-2 font-semibold"
-                    style={{ color: speakerColor(seg.speaker, speakerOrder) }}
-                  >
-                    说话人{seg.speaker}
-                  </span>
-                )}
-                <span className="text-muted-foreground mr-2">[{formatTimestamp(seg.start)}]</span>
-                {seg.text}
-              </button>
-            ))}
+            <div className="max-h-[70vh] space-y-1 overflow-y-auto rounded-xl border p-4">
+              {segments.map((seg, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+                  onClick={() => {
+                    if (audioRef.current) {
+                      audioRef.current.currentTime = seg.start;
+                      void audioRef.current.play();
+                    }
+                  }}
+                >
+                  {showSpeakerLabels && (
+                    <span
+                      className="mr-2 font-semibold"
+                      style={{ color: speakerColor(seg.speaker, speakerOrder) }}
+                    >
+                      说话人{seg.speaker}
+                    </span>
+                  )}
+                  <span className="text-muted-foreground mr-2">[{formatTimestamp(seg.start)}]</span>
+                  {seg.text}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {episode.status === "generating" && (
-            <MaterialsPanel
-              episodeId={episodeId}
-              enabledTypes={(episode.generate_materials as string[] | null) ?? []}
-            />
-          )}
+          <div className="md:col-span-3">
+            {(episode.status === "generating" ||
+              episode.status === "ready" ||
+              episode.status === "published") && (
+              <MaterialsPanel
+                episodeId={episodeId}
+                enabledTypes={(episode.generate_materials as string[] | null) ?? []}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>

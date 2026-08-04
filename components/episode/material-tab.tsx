@@ -5,12 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { Database } from "@/lib/db/database.types";
 import type { TitleContent } from "@/prompts/title";
-import type { ShownotesContent } from "@/prompts/shownotes";
+import type {
+  ShownotesIntroContent,
+  ShownotesGuestIntroContent,
+  ShownotesMentionsContent,
+} from "@/prompts/shownotes";
 import type { ChaptersContent } from "@/prompts/chapters";
 import type { NoteContent } from "@/prompts/note";
 
 type MaterialRow = Database["public"]["Tables"]["materials"]["Row"];
-type MaterialType = "title" | "shownotes" | "chapters" | "note";
+export type MaterialType =
+  | "title"
+  | "shownotes_intro"
+  | "shownotes_guest_intro"
+  | "shownotes_mentions"
+  | "chapters"
+  | "note";
 
 interface MaterialTabProps {
   episodeId: string;
@@ -32,7 +42,9 @@ function secondsSince(isoTime: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(isoTime).getTime()) / 1000));
 }
 
-function ContentView({ type, content }: { type: MaterialType; content: unknown }) {
+// 导出给 ShownotesPanel 复用——章节的只读引用块和 Tab4 里的正式渲染要长一个样，
+// 没道理再抄一遍这段 JSX
+export function ContentView({ type, content }: { type: MaterialType; content: unknown }) {
   if (!content) return null;
 
   if (type === "title") {
@@ -49,33 +61,32 @@ function ContentView({ type, content }: { type: MaterialType; content: unknown }
     );
   }
 
-  if (type === "shownotes") {
-    const c = content as ShownotesContent;
+  if (type === "shownotes_intro") {
+    const c = content as ShownotesIntroContent;
+    return <p className="text-sm">{c.intro}</p>;
+  }
+
+  if (type === "shownotes_guest_intro") {
+    const c = content as ShownotesGuestIntroContent;
+    if (!c.guestIntro) {
+      return <p className="text-muted-foreground text-sm">（本期没有嘉宾）</p>;
+    }
+    return <p className="text-sm">{c.guestIntro}</p>;
+  }
+
+  if (type === "shownotes_mentions") {
+    const c = content as ShownotesMentionsContent;
+    if (c.mentions.length === 0) {
+      return <p className="text-muted-foreground text-sm">（没有提到具体的书/影/人/链接）</p>;
+    }
     return (
-      <div className="space-y-3 text-sm">
-        <div>
-          <div className="text-muted-foreground mb-1 font-medium">简介</div>
-          {c.intro}
-        </div>
-        {c.guestIntro && (
-          <div>
-            <div className="text-muted-foreground mb-1 font-medium">嘉宾介绍</div>
-            {c.guestIntro}
-          </div>
-        )}
-        {c.mentions.length > 0 && (
-          <div>
-            <div className="text-muted-foreground mb-1 font-medium">提及清单</div>
-            <ul className="list-disc pl-5">
-              {c.mentions.map((m, i) => (
-                <li key={i}>
-                  {m.name}（{m.type}）{m.note && ` - ${m.note}`}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
+      <ul className="list-disc space-y-1 pl-5 text-sm">
+        {c.mentions.map((m, i) => (
+          <li key={i}>
+            {m.name}（{m.type}）{m.note && ` - ${m.note}`}
+          </li>
+        ))}
+      </ul>
     );
   }
 

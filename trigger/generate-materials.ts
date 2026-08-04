@@ -1,12 +1,14 @@
-// 转写完成后生成文本四件套（标题/shownotes/章节/宣传笔记）。
+// 转写完成后生成文本类物料（标题/shownotes 三块/章节/宣传笔记）。
 // 每项独立生成、独立失败重试（架构铁律），所以用 allSettled 不用一个失败拖累其它几项。
+// generate_materials 里存的是粗粒度勾选（"shownotes"），expandRequestedType 展开成
+// 实际要跑的物料类型（shownotes 拆成简介/嘉宾介绍/提及清单三个独立物料）。
 import { task, logger } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/database.types";
 import { generateMaterial } from "@/lib/services/materials/generate";
 import {
   TEXT_MATERIAL_DEFINITIONS,
-  isTextMaterialType,
+  expandRequestedType,
 } from "@/lib/services/materials/definitions";
 import type { MaterialDefinition } from "@/lib/services/materials/types";
 
@@ -25,7 +27,7 @@ export const generateMaterials = task({
   maxDuration: 600,
   run: async (payload: { episodeId: string; materialTypes: string[] }) => {
     const supabase = getAdminClient();
-    const types = payload.materialTypes.filter(isTextMaterialType);
+    const types = Array.from(new Set(payload.materialTypes.flatMap(expandRequestedType)));
 
     // 每种物料的 content 形状不一样，批量并发派发时不需要区分具体类型，统一按 unknown 处理
     const results = await Promise.allSettled(

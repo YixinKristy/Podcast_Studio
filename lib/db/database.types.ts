@@ -414,7 +414,17 @@ export type Database = {
         | "ready"
         | "published";
       material_status: "pending" | "generating" | "ready" | "failed";
-      material_type: "title" | "cover" | "shownotes" | "chapters" | "quotes" | "clips" | "note";
+      material_type:
+        | "title"
+        | "cover"
+        | "shownotes"
+        | "chapters"
+        | "quotes"
+        | "clips"
+        | "note"
+        | "shownotes_intro"
+        | "shownotes_guest_intro"
+        | "shownotes_mentions";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -550,7 +560,18 @@ export const Constants = {
         "published",
       ],
       material_status: ["pending", "generating", "ready", "failed"],
-      material_type: ["title", "cover", "shownotes", "chapters", "quotes", "clips", "note"],
+      material_type: [
+        "title",
+        "cover",
+        "shownotes",
+        "chapters",
+        "quotes",
+        "clips",
+        "note",
+        "shownotes_intro",
+        "shownotes_guest_intro",
+        "shownotes_mentions",
+      ],
     },
   },
 } as const;

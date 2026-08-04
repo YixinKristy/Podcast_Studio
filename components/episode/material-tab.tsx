@@ -24,6 +24,14 @@ function formatTimestamp(seconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+// 单次生成正常情况下不会超过这个时长（长逐字稿也是一次 Qwen 调用），
+// 超过了大概率是请求半路挂了（比如 serverless 超时），而不是还在正常跑
+const STALL_SECONDS = 90;
+
+function secondsSince(isoTime: string): number {
+  return Math.max(0, Math.round((Date.now() - new Date(isoTime).getTime()) / 1000));
+}
+
 function ContentView({ type, content }: { type: MaterialType; content: unknown }) {
   if (!content) return null;
 
@@ -158,8 +166,38 @@ export function MaterialTab({ episodeId, type, material }: MaterialTabProps) {
     }
   }
 
-  if (status === "pending" || status === "generating") {
-    return <p className="text-muted-foreground text-sm">生成中...</p>;
+  if (status === "generating") {
+    const elapsed = material ? secondsSince(material.updated_at) : 0;
+    const stalled = elapsed > STALL_SECONDS;
+    return (
+      <div>
+        <p className="text-muted-foreground text-sm">生成中...（已等待 {elapsed} 秒）</p>
+        {stalled && (
+          <div className="mt-2">
+            <p className="text-muted-foreground text-xs">
+              等的有点久了，可能是中途失败了，可以直接重试
+            </p>
+            <Button size="sm" variant="outline" className="mt-1" onClick={reroll} disabled={busy}>
+              {busy ? "重试中..." : "重试"}
+            </Button>
+          </div>
+        )}
+        {message && <p className="text-destructive mt-2 text-sm">{message}</p>}
+      </div>
+    );
+  }
+
+  // material 为 null 说明这个类型还从来没触发过生成——可能是转写完成时的自动触发链路
+  // 没覆盖到（比如这期是功能上线前就转写完的老 episode），不能一直卡在无操作的状态
+  if (status === "pending") {
+    return (
+      <div>
+        <Button size="sm" onClick={reroll} disabled={busy}>
+          {busy ? "生成中..." : "开始生成"}
+        </Button>
+        {message && <p className="text-destructive mt-2 text-sm">{message}</p>}
+      </div>
+    );
   }
 
   if (status === "failed") {

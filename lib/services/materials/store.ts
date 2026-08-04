@@ -32,7 +32,12 @@ export async function markGenerating(
   type: TextMaterialType,
 ): Promise<string> {
   const materialId = await getOrCreateMaterial(supabase, episodeId, type);
-  await supabase.from("materials").update({ status: "generating" }).eq("id", materialId);
+  // updated_at 没有数据库触发器自动维护，这里手动打时间戳——
+  // 前端要靠它算出"这次生成已经跑了多久"，不是行第一次创建的时间
+  await supabase
+    .from("materials")
+    .update({ status: "generating", updated_at: new Date().toISOString() })
+    .eq("id", materialId);
   return materialId;
 }
 
@@ -40,7 +45,10 @@ export async function markFailed(
   supabase: SupabaseClient<Database>,
   materialId: string,
 ): Promise<void> {
-  await supabase.from("materials").update({ status: "failed" }).eq("id", materialId);
+  await supabase
+    .from("materials")
+    .update({ status: "failed", updated_at: new Date().toISOString() })
+    .eq("id", materialId);
 }
 
 // 存一个新版本，materials.content/version 同步指向它，超过 5 版的旧版本清掉

@@ -1,0 +1,287 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/db/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import type { Database } from "@/lib/db/database.types";
+import type { StoredSuggestion } from "@/lib/services/roughcut/generate";
+
+type RoughCutRow = Database["public"]["Tables"]["rough_cuts"]["Row"];
+
+// 跟物料生成一致的"等太久大概率是挂了"阈值
+const STALL_SECONDS = 90;
+
+function secondsSince(isoTime: string): number {
+  return Math.max(0, Math.round((Date.now() - new Date(isoTime).getTime()) / 1000));
+}
+
+function formatTimestamp(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  filler: "填充词",
+  long_pause: "长停顿",
+  retake: "口误重说",
+  redundant: "冗余表达",
+  off_topic: "跑题",
+  low_density: "低信息密度",
+};
+
+function SuggestionRow({
+  suggestion,
+  onToggle,
+}: {
+  suggestion: StoredSuggestion;
+  onToggle: (id: string, checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-2 rounded-md border p-2 text-sm">
+      <Checkbox
+        checked={suggestion.selected}
+        onCheckedChange={(checked) => onToggle(suggestion.id, checked === true)}
+        className="mt-0.5"
+      />
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <span className="bg-muted rounded px-1.5 py-0.5 text-xs">
+            {TYPE_LABELS[suggestion.type] ?? suggestion.type}
+          </span>
+          <span className="text-muted-foreground font-mono text-xs">
+            [{formatTimestamp(suggestion.startSeconds)} - {formatTimestamp(suggestion.endSeconds)}]
+          </span>
+          <span className="text-muted-foreground text-xs">
+            置信度 {Math.round(suggestion.confidence * 100)}%
+          </span>
+        </div>
+        <p className="mt-1">{suggestion.reason}</p>
+      </div>
+    </label>
+  );
+}
+
+interface RoughCutPanelProps {
+  episodeId: string;
+}
+
+export function RoughCutPanel({ episodeId }: RoughCutPanelProps) {
+  const [roughCut, setRoughCut] = useState<RoughCutRow | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [rendering, setRendering] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+
+    async function load() {
+      const { data } = await supabase
+        .from("rough_cuts")
+        .select("*")
+        .eq("episode_id", episodeId)
+        .maybeSingle();
+      if (!cancelled) setRoughCut(data);
+    }
+
+    void load();
+    const interval = setInterval(() => void load(), 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [episodeId]);
+
+  useEffect(() => {
+    if (roughCut?.render_status !== "ready" || !roughCut.audio_url) return;
+    fetch(`/api/episodes/${episodeId}/rough-cut/audio-url`)
+      .then((res) => res.json())
+      .then((json) => setAudioUrl(json.url ?? null))
+      .catch(() => setAudioUrl(null));
+  }, [episodeId, roughCut?.render_status, roughCut?.audio_url]);
+
+  async function generate() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/episodes/${episodeId}/rough-cut/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction: instruction || undefined }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setMessage(json.error ?? "生成失败");
+        return;
+      }
+      setInstruction("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleSuggestion(id: string, checked: boolean) {
+    if (!roughCut) return;
+    const suggestions = (roughCut.suggestions as unknown as StoredSuggestion[]).map((s) =>
+      s.id === id ? { ...s, selected: checked } : s,
+    );
+    setRoughCut({ ...roughCut, suggestions: suggestions as unknown as RoughCutRow["suggestions"] });
+    const selectedIds = suggestions.filter((s) => s.selected).map((s) => s.id);
+    await fetch(`/api/episodes/${episodeId}/rough-cut/selection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedIds }),
+    });
+  }
+
+  async function render() {
+    setRendering(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/episodes/${episodeId}/rough-cut/render`, { method: "POST" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setMessage(json.error ?? "渲染失败");
+      }
+    } finally {
+      setRendering(false);
+    }
+  }
+
+  const status = roughCut?.status ?? "pending";
+
+  if (status === "generating") {
+    const elapsed = roughCut ? secondsSince(roughCut.updated_at) : 0;
+    const stalled = elapsed > STALL_SECONDS;
+    return (
+      <div>
+        <p className="text-muted-foreground text-sm">生成中...（已等待 {elapsed} 秒）</p>
+        {stalled && (
+          <Button size="sm" variant="outline" className="mt-2" onClick={generate} disabled={busy}>
+            {busy ? "重试中..." : "等的有点久了，重试"}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  if (status === "pending") {
+    return (
+      <div>
+        <p className="text-muted-foreground mb-3 text-sm">
+          AI 分析这期的填充词、长停顿、冗余内容等，给出粗剪建议——不是自动帮你剪好，是给你参考，
+          你勾选采纳的部分会被真实剪掉，生成一版半成品音频，方便你拖进剪映等工具继续精修。
+        </p>
+        <Button size="sm" onClick={generate} disabled={busy}>
+          {busy ? "生成中..." : "生成粗剪建议"}
+        </Button>
+        {message && <p className="text-destructive mt-2 text-sm">{message}</p>}
+      </div>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <div>
+        <p className="text-destructive mb-2 text-sm">生成失败了</p>
+        <Button size="sm" onClick={generate} disabled={busy}>
+          {busy ? "重试中..." : "重试"}
+        </Button>
+      </div>
+    );
+  }
+
+  const suggestions = (roughCut?.suggestions as unknown as StoredSuggestion[]) ?? [];
+  const l1 = suggestions.filter((s) => s.layer === "L1");
+  const l2 = suggestions.filter((s) => s.layer === "L2");
+  const renderStatus = roughCut?.render_status ?? "pending";
+  const renderElapsed = roughCut ? secondsSince(roughCut.updated_at) : 0;
+
+  return (
+    <div className="space-y-4">
+      {roughCut?.outline_markdown && (
+        <details className="rounded-xl border p-3" open>
+          <summary className="cursor-pointer text-sm font-medium">内容结构大纲</summary>
+          <pre className="mt-2 font-sans text-sm whitespace-pre-wrap">
+            {roughCut.outline_markdown}
+          </pre>
+        </details>
+      )}
+
+      <div className="space-y-2">
+        <h4 className="text-sm font-semibold">填充词 / 长停顿（L1，默认采纳）</h4>
+        {l1.length === 0 && <p className="text-muted-foreground text-sm">没有检测到</p>}
+        {l1.map((s) => (
+          <SuggestionRow key={s.id} suggestion={s} onToggle={toggleSuggestion} />
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-sm font-semibold">内容判断（L2，逐条确认要不要采纳）</h4>
+        {l2.length === 0 && (
+          <p className="text-muted-foreground text-sm">没有识别到明显可删的内容</p>
+        )}
+        {l2.map((s) => (
+          <SuggestionRow key={s.id} suggestion={s} onToggle={toggleSuggestion} />
+        ))}
+      </div>
+
+      <div className="flex gap-2 border-t pt-3">
+        <input
+          className="flex-1 rounded-md border px-3 py-1.5 text-sm"
+          placeholder="重roll指令，例如：再多删一些无关的闲聊"
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+        />
+        <Button size="sm" variant="outline" onClick={generate} disabled={busy}>
+          {busy ? "处理中..." : "重新生成建议"}
+        </Button>
+      </div>
+
+      <div className="border-t pt-3">
+        {renderStatus === "pending" && (
+          <Button size="sm" onClick={render} disabled={rendering}>
+            {rendering ? "提交中..." : "生成粗剪音频"}
+          </Button>
+        )}
+        {renderStatus === "generating" && (
+          <p className="text-muted-foreground text-sm">
+            粗剪音频渲染中...（已等待 {renderElapsed} 秒）
+          </p>
+        )}
+        {renderStatus === "failed" && (
+          <div>
+            <p className="text-destructive mb-2 text-sm">渲染失败了</p>
+            <Button size="sm" onClick={render} disabled={rendering}>
+              {rendering ? "重试中..." : "重试"}
+            </Button>
+          </div>
+        )}
+        {renderStatus === "ready" && (
+          <div className="space-y-2">
+            {audioUrl && (
+              <audio controls src={audioUrl} className="w-full">
+                <track kind="captions" />
+              </audio>
+            )}
+            <div className="flex gap-2">
+              {audioUrl && (
+                <a href={audioUrl} download className="text-sm underline">
+                  下载粗剪音频
+                </a>
+              )}
+              <Button size="sm" variant="outline" onClick={render} disabled={rendering}>
+                {rendering ? "提交中..." : "按当前勾选重新生成"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+      {message && <p className="text-destructive text-sm">{message}</p>}
+    </div>
+  );
+}

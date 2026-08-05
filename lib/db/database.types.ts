@@ -249,6 +249,53 @@ export type Database = {
           },
         ];
       };
+      rough_cuts: {
+        Row: {
+          audio_url: string | null;
+          created_at: string;
+          episode_id: string;
+          id: string;
+          outline_markdown: string | null;
+          render_status: Database["public"]["Enums"]["material_status"];
+          status: Database["public"]["Enums"]["material_status"];
+          suggestions: Json;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          audio_url?: string | null;
+          created_at?: string;
+          episode_id: string;
+          id?: string;
+          outline_markdown?: string | null;
+          render_status?: Database["public"]["Enums"]["material_status"];
+          status?: Database["public"]["Enums"]["material_status"];
+          suggestions?: Json;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          audio_url?: string | null;
+          created_at?: string;
+          episode_id?: string;
+          id?: string;
+          outline_markdown?: string | null;
+          render_status?: Database["public"]["Enums"]["material_status"];
+          status?: Database["public"]["Enums"]["material_status"];
+          suggestions?: Json;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "rough_cuts_episode_id_fkey";
+            columns: ["episode_id"];
+            isOneToOne: true;
+            referencedRelation: "episodes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       shows: {
         Row: {
           created_at: string;

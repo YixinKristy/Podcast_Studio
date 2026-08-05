@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { Database } from "@/lib/db/database.types";
 import type { TranscriptSegment } from "@/lib/services/transcript";
 import { MaterialsPanel } from "./materials-panel";
+import { RoughCutPanel } from "./rough-cut-panel";
 
 type EpisodeRow = Pick<
   Database["public"]["Tables"]["episodes"]["Row"],
@@ -209,7 +210,14 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
             </div>
           </div>
 
-          <div className="md:col-span-3">
+          <div className="md:col-span-3 space-y-8">
+            {/* docs/04 Stage 1：发布前的粗剪建议，跟七件套发布物料是不同阶段的东西，
+                单独一个区块，不混进"发布物料"的 Tab 里 */}
+            <div>
+              <h2 className="mb-3 text-lg font-semibold">粗剪</h2>
+              <RoughCutPanel episodeId={episodeId} />
+            </div>
+
             {(episode.status === "generating" ||
               episode.status === "ready" ||
               episode.status === "published") && (

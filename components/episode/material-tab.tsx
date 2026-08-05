@@ -9,6 +9,7 @@ import type {
   ShownotesIntroContent,
   ShownotesGuestIntroContent,
   ShownotesMentionsContent,
+  ShownotesPinnedQuestionContent,
 } from "@/prompts/shownotes";
 import type { ChaptersContent } from "@/prompts/chapters";
 import type { NoteContent } from "@/prompts/note";
@@ -19,6 +20,7 @@ export type MaterialType =
   | "shownotes_intro"
   | "shownotes_guest_intro"
   | "shownotes_mentions"
+  | "shownotes_pinned_question"
   | "chapters"
   | "note";
 
@@ -55,6 +57,9 @@ export function ContentView({ type, content }: { type: MaterialType; content: un
           <div key={i} className="rounded-md border p-3">
             <span className="bg-muted mr-2 rounded px-1.5 py-0.5 text-xs">{cand.style}</span>
             {cand.title}
+            {cand.audience && (
+              <div className="text-muted-foreground mt-1 text-xs">抓的是：{cand.audience}</div>
+            )}
           </div>
         ))}
       </div>
@@ -77,17 +82,29 @@ export function ContentView({ type, content }: { type: MaterialType; content: un
   if (type === "shownotes_mentions") {
     const c = content as ShownotesMentionsContent;
     if (c.mentions.length === 0) {
-      return <p className="text-muted-foreground text-sm">（没有提到具体的书/影/人/链接）</p>;
+      return (
+        <p className="text-muted-foreground text-sm">
+          （没有提到具体的书/影视/播客/人物/工具/链接）
+        </p>
+      );
     }
     return (
       <ul className="list-disc space-y-1 pl-5 text-sm">
         {c.mentions.map((m, i) => (
           <li key={i}>
+            <span className="text-muted-foreground mr-1 font-mono text-xs">
+              [{formatTimestamp(m.timestampSeconds)}]
+            </span>
             {m.name}（{m.type}）{m.note && ` - ${m.note}`}
           </li>
         ))}
       </ul>
     );
+  }
+
+  if (type === "shownotes_pinned_question") {
+    const c = content as ShownotesPinnedQuestionContent;
+    return <p className="text-sm">{c.pinnedQuestion}</p>;
   }
 
   if (type === "chapters") {

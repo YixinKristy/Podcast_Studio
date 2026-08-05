@@ -424,7 +424,8 @@ export type Database = {
         | "note"
         | "shownotes_intro"
         | "shownotes_guest_intro"
-        | "shownotes_mentions";
+        | "shownotes_mentions"
+        | "shownotes_pinned_question";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -571,6 +572,7 @@ export const Constants = {
         "shownotes_intro",
         "shownotes_guest_intro",
         "shownotes_mentions",
+        "shownotes_pinned_question",
       ],
     },
   },

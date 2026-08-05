@@ -70,7 +70,6 @@ export function MaterialsPanel({ episodeId, enabledTypes }: MaterialsPanelProps)
 
   return (
     <div>
-      <h2 className="mb-3 text-lg font-semibold">发布物料</h2>
       <div className="mb-4 flex gap-2 border-b">
         {tabs.map((t) => (
           <button

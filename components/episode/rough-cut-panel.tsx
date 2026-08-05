@@ -75,26 +75,53 @@ export function RoughCutPanel({ episodeId }: RoughCutPanelProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
-  useEffect(() => {
+  async function refetch() {
     const supabase = createClient();
-    let cancelled = false;
+    const { data } = await supabase
+      .from("rough_cuts")
+      .select("*")
+      .eq("episode_id", episodeId)
+      .maybeSingle();
+    setRoughCut(data);
+    return data;
+  }
 
-    async function load() {
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("rough_cuts")
+      .select("*")
+      .eq("episode_id", episodeId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setRoughCut(data);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [episodeId]);
+
+  // 只在生成中/渲染中才轮询——ready 之后这一行只会被我们自己的操作改动，
+  // 一直轮询反而会跟勾选框的乐观更新赛跑，把还没落库的本地状态覆盖掉，
+  // 表现为"勾选了又消失"
+  useEffect(() => {
+    if (roughCut?.status !== "generating" && roughCut?.render_status !== "generating") return;
+    let cancelled = false;
+    const supabase = createClient();
+    const interval = setInterval(async () => {
       const { data } = await supabase
         .from("rough_cuts")
         .select("*")
         .eq("episode_id", episodeId)
         .maybeSingle();
       if (!cancelled) setRoughCut(data);
-    }
-
-    void load();
-    const interval = setInterval(() => void load(), 3000);
+    }, 3000);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [episodeId]);
+  }, [episodeId, roughCut?.status, roughCut?.render_status]);
 
   useEffect(() => {
     if (roughCut?.render_status !== "ready" || !roughCut.audio_url) return;
@@ -107,6 +134,12 @@ export function RoughCutPanel({ episodeId }: RoughCutPanelProps) {
   async function generate() {
     setBusy(true);
     setMessage(null);
+    // 生成接口是同步等 LLM 跑完才返回的，请求期间本地状态不会自己变——
+    // 先乐观标成 generating，好让下面的"已等待 N 秒"计时器立刻显示，
+    // 而不是要等整个请求结束后才看到状态变化
+    setRoughCut((prev) =>
+      prev ? { ...prev, status: "generating", updated_at: new Date().toISOString() } : prev,
+    );
     try {
       const res = await fetch(`/api/episodes/${episodeId}/rough-cut/generate`, {
         method: "POST",
@@ -116,15 +149,21 @@ export function RoughCutPanel({ episodeId }: RoughCutPanelProps) {
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
         setMessage(json.error ?? "生成失败");
+        await refetch();
         return;
       }
       setInstruction("");
+      await refetch();
     } finally {
       setBusy(false);
     }
   }
 
   async function toggleSuggestion(id: string, checked: boolean) {
+    // ready 状态下不再有轮询在跑（见上面的轮询 effect），所以这里可以放心直接读
+    // 当前的 roughCut 闭包变量——不需要绕道 setState 的 updater 回调去拿"最新值"，
+    // 那样反而不可靠：updater 什么时候真正执行不保证早于下面这行读 selectedIds，
+    // 曾经导致发出空数组、把所有建议在数据库里整体清成未选中
     if (!roughCut) return;
     const suggestions = (roughCut.suggestions as unknown as StoredSuggestion[]).map((s) =>
       s.id === id ? { ...s, selected: checked } : s,
@@ -146,7 +185,10 @@ export function RoughCutPanel({ episodeId }: RoughCutPanelProps) {
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
         setMessage(json.error ?? "渲染失败");
+        await refetch();
+        return;
       }
+      await refetch();
     } finally {
       setRendering(false);
     }

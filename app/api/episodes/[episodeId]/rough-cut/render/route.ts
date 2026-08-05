@@ -43,6 +43,13 @@ export async function POST(
   const objectKey = buildEpisodeObjectKey(episode.show_id, "roughcut.mp3");
   const uploadUrl = getSignedUploadUrl(objectKey, 4 * 60 * 60);
 
+  // 任务是异步排队执行的，触发和真正开始跑之间有间隔——先在这里同步标记
+  // generating，客户端拿到响应时就能立刻看到正确状态，不用等任务真正开始
+  await supabase
+    .from("rough_cuts")
+    .update({ render_status: "generating", updated_at: new Date().toISOString() })
+    .eq("id", roughCut.id);
+
   await tasks.trigger<typeof renderRoughCut>("render-rough-cut", {
     episodeId,
     downloadUrl,

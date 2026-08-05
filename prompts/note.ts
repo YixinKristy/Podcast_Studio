@@ -1,19 +1,32 @@
 import { z } from "zod";
 import type { MaterialDefinition, MaterialGenerationContext } from "@/lib/services/materials/types";
+import { COMMON_SYSTEM_PROMPT_HEADER } from "./common";
 
 export const noteSchema = z.object({
-  title: z.string().min(1).max(30),
+  title: z.string().min(1).max(20),
   body: z.string().min(1),
-  hashtags: z.array(z.string()).min(1),
+  hashtags: z.array(z.string()).min(5).max(7),
 });
 
 export type NoteContent = z.infer<typeof noteSchema>;
 
 function buildPrompt(context: MaterialGenerationContext, instruction?: string) {
-  const system = `你是小红书运营，帮播客写宣传笔记。必须输出 JSON：
-{"title": "标题，20字以内可以带emoji", "body": "正文", "hashtags": ["话题1", "话题2", ...]}
-正文结构：一句钩子开头 + 3 个具体看点（不是泛泛而谈，要能让人一看就知道这期讲了什么具体的事）+ 收听引导 + @节目名。
-语气口语化、有网感，不要写成新闻通稿。hashtags 不带 # 号，4-6 个。`;
+  const system = `${COMMON_SYSTEM_PROMPT_HEADER}
+
+你是小红书运营，帮播客写一篇整期宣传笔记（辅助物料，主力是切片包）。必须输出 JSON：
+{"title": "...", "body": "...", "hashtags": ["话题1", "话题2", ...]}
+
+标题：≤20 字，含 1 个 emoji，用具体处境或提问，不用"播客推荐"开头。
+
+正文结构（按顺序）：
+1. 第一行钩子（具体场景或数字对照，不是介绍节目）
+2. 3 个看点（每个一行，带序号 emoji，具体到内容不是形容词）
+3. 收听引导，格式："完整版 XX 分钟 · 小宇宙搜🔍${context.showName}"
+4. 互动引导：一句能让人评论的具体问题
+
+话题标签：5-7 个，垂类精准优先，#播客推荐 这类泛标签最多 1 个，不带 # 号。
+
+风格：像一个真实用户在推荐自己喜欢的节目，不像品牌文案，不要写成新闻通稿。`;
 
   const user = [
     `节目名：${context.showName}`,

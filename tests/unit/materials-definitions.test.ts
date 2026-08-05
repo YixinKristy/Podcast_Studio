@@ -6,11 +6,12 @@ import {
 } from "@/lib/services/materials/definitions";
 
 describe("expandRequestedType", () => {
-  it("shownotes 展开成三个独立生成的块", () => {
+  it("shownotes 展开成四个独立生成的块（含 13 号文档加的置顶互动问题）", () => {
     expect(expandRequestedType("shownotes")).toEqual([
       "shownotes_intro",
       "shownotes_guest_intro",
       "shownotes_mentions",
+      "shownotes_pinned_question",
     ]);
   });
 
@@ -38,10 +39,11 @@ describe("isTextMaterialType", () => {
     expect(isTextMaterialType("shownotes")).toBe(false);
   });
 
-  it("三个 shownotes 块都是有效的物料类型", () => {
+  it("四个 shownotes 块都是有效的物料类型", () => {
     expect(isTextMaterialType("shownotes_intro")).toBe(true);
     expect(isTextMaterialType("shownotes_guest_intro")).toBe(true);
     expect(isTextMaterialType("shownotes_mentions")).toBe(true);
+    expect(isTextMaterialType("shownotes_pinned_question")).toBe(true);
   });
 
   it("clips 不算文本物料类型（它不走 generateMaterial 那套同步 LLM 调用）", () => {

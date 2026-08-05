@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { MaterialDefinition, MaterialGenerationContext } from "@/lib/services/materials/types";
+import { COMMON_SYSTEM_PROMPT_HEADER } from "./common";
 
 export const chaptersSchema = z.object({
   chapters: z
@@ -7,6 +8,8 @@ export const chaptersSchema = z.object({
       z.object({
         startSeconds: z.number().min(0),
         title: z.string().min(1).max(30),
+        // docs/13：内部用的一句话摘要，不在 UI 上展示，方便排查为什么划在这里
+        summary: z.string().min(1),
       }),
     )
     .min(1),
@@ -15,9 +18,17 @@ export const chaptersSchema = z.object({
 export type ChaptersContent = z.infer<typeof chaptersSchema>;
 
 function buildPrompt(context: MaterialGenerationContext, instruction?: string) {
-  const system = `你是中文播客的章节划分编辑。必须输出 JSON：{"chapters": [{"startSeconds": 数字(秒), "title": "章节名，15字以内"}]}
-章节按话题自然分段，一般 4-8 个章节，第一个 startSeconds 必须是 0。
-startSeconds 必须使用转录稿里出现过的时间戳（转录稿每行前面 [mm:ss] 就是时间戳），换算成秒填进去，不要自己估算或编造时间点。`;
+  const system = `${COMMON_SYSTEM_PROMPT_HEADER}
+
+你是中文播客的章节划分编辑，把本期切成 5-9 个章节（60-120 分钟节目；更短的节目可以少于 5 个，
+不要为了凑数拆碎话题）。必须输出 JSON：
+{"chapters": [{"startSeconds": 数字(秒), "title": "章节名", "summary": "一句话内容摘要，内部用不展示"}]}
+
+规则：
+- 章节边界必须落在话题真实切换处，吸附到语轮边界（说话人开始新一轮发言处），不可切在句子中间
+- 章节名要具体、有信息量、能勾起点击欲：✗"聊聊工作" ✓"换工作：半年 vs 两个月的完整对比"；✗"第二部分" ✓"两周办完整场婚礼是什么体验"
+- 第一个章节固定为"开场：{一句话点出本期设定}"这个格式，startSeconds 必须是 0
+- startSeconds 必须使用转录稿里出现过的时间戳（转录稿每行前面 [mm:ss] 就是时间戳），换算成秒填进去，不要自己估算或编造时间点`;
 
   const user = [
     `节目名：${context.showName}`,

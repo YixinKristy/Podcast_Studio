@@ -113,22 +113,24 @@ describe("maybeCompleteGeneration：generating -> ready 状态迁移", () => {
     expect(await statusOf(id)).toBe("ready");
   });
 
-  it("shownotes 是粗粒度勾选，要展开成三个块——只做完其中一块不会提前迁移", async () => {
+  it("shownotes 是粗粒度勾选，要展开成四个块——只做完其中几块不会提前迁移", async () => {
     const id = await createEpisode(["shownotes"]);
     await setMaterial(id, "shownotes_intro", "ready");
     await setMaterial(id, "shownotes_guest_intro", "ready");
-    // shownotes_mentions 还没做
+    await setMaterial(id, "shownotes_mentions", "ready");
+    // shownotes_pinned_question 还没做
 
     await maybeCompleteGeneration(admin, id);
 
     expect(await statusOf(id)).toBe("generating");
   });
 
-  it("shownotes 三个块都到终态后才迁移", async () => {
+  it("shownotes 四个块都到终态后才迁移", async () => {
     const id = await createEpisode(["shownotes"]);
     await setMaterial(id, "shownotes_intro", "ready");
     await setMaterial(id, "shownotes_guest_intro", "ready");
     await setMaterial(id, "shownotes_mentions", "ready");
+    await setMaterial(id, "shownotes_pinned_question", "ready");
 
     await maybeCompleteGeneration(admin, id);
 

@@ -43,5 +43,38 @@ export async function buildGenerationContext(
     guests: (episode.guests as unknown as Guest[] | null) ?? [],
     transcriptText: transcriptToText(segments),
     segments,
+    recentTitles: await fetchRecentTitles(supabase, episode.show_id, episodeId),
   };
+}
+
+// docs/13 通用上下文块："往期标题风格样例"——同一节目其它期已确认的标题候选，
+// 帮标题 prompt 延续这档节目一贯的语气（V2 风格记忆的雏形）。没有就返回空数组。
+async function fetchRecentTitles(
+  supabase: SupabaseClient<Database>,
+  showId: string,
+  excludeEpisodeId: string,
+): Promise<string[]> {
+  const { data: otherEpisodes } = await supabase
+    .from("episodes")
+    .select("id")
+    .eq("show_id", showId)
+    .neq("id", excludeEpisodeId);
+  const otherEpisodeIds = (otherEpisodes ?? []).map((e) => e.id);
+  if (otherEpisodeIds.length === 0) return [];
+
+  const { data: pastTitles } = await supabase
+    .from("materials")
+    .select("content")
+    .eq("type", "title")
+    .not("confirmed_at", "is", null)
+    .in("episode_id", otherEpisodeIds)
+    .order("created_at", { ascending: false })
+    .limit(3);
+
+  return (pastTitles ?? [])
+    .flatMap((m) => {
+      const content = m.content as unknown as { candidates?: { title: string }[] } | null;
+      return content?.candidates?.map((c) => c.title) ?? [];
+    })
+    .slice(0, 8);
 }

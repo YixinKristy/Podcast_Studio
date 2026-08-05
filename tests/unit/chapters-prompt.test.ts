@@ -12,6 +12,7 @@ function makeContext(segments: TranscriptSegment[]): MaterialGenerationContext {
     guests: [],
     transcriptText: "",
     segments,
+    recentTitles: [],
   };
 }
 
@@ -51,8 +52,8 @@ describe("postProcess (chapters)", () => {
     const result = postProcess(
       {
         chapters: [
-          { startSeconds: 3, title: "开场" },
-          { startSeconds: 11, title: "正题" },
+          { startSeconds: 3, title: "开场", summary: "" },
+          { startSeconds: 11, title: "正题", summary: "" },
         ],
       },
       context,
@@ -72,8 +73,8 @@ describe("postProcess (chapters)", () => {
     const result = postProcess(
       {
         chapters: [
-          { startSeconds: 28, title: "后段" },
-          { startSeconds: 1, title: "前段" },
+          { startSeconds: 28, title: "后段", summary: "" },
+          { startSeconds: 1, title: "前段", summary: "" },
         ],
       },
       context,

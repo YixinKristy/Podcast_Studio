@@ -24,6 +24,7 @@ const SHOWNOTES_BLOCK_TYPES = [
   "shownotes_intro",
   "shownotes_guest_intro",
   "shownotes_mentions",
+  "shownotes_pinned_question",
 ] as const;
 
 interface MaterialsPanelProps {
@@ -93,6 +94,7 @@ export function MaterialsPanel({ episodeId, enabledTypes }: MaterialsPanelProps)
           episodeId={episodeId}
           chaptersMaterial={materials.chapters ?? null}
           introMaterial={materials.shownotes_intro ?? null}
+          pinnedQuestionMaterial={materials.shownotes_pinned_question ?? null}
           guestIntroMaterial={materials.shownotes_guest_intro ?? null}
           mentionsMaterial={materials.shownotes_mentions ?? null}
         />

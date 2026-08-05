@@ -4,15 +4,24 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/db/supabase/client";
 import type { Database } from "@/lib/db/database.types";
 import { MaterialTab } from "./material-tab";
+import { ShownotesPanel } from "./shownotes-panel";
 
 type MaterialRow = Database["public"]["Tables"]["materials"]["Row"];
 
-const TABS: { type: "title" | "shownotes" | "chapters" | "note"; label: string }[] = [
-  { type: "title", label: "标题" },
-  { type: "shownotes", label: "Shownotes" },
-  { type: "chapters", label: "章节" },
-  { type: "note", label: "宣传笔记" },
+// Shownotes 在 UI 上还是一个 Tab，但底下是三个独立生成的物料类型（见 shownotes-panel.tsx），
+// "shownotes" 这个 key 只用来做 Tab 导航，不对应 materials 表里的任何一行
+const TABS: { key: "title" | "shownotes" | "chapters" | "note"; label: string }[] = [
+  { key: "title", label: "标题" },
+  { key: "shownotes", label: "Shownotes" },
+  { key: "chapters", label: "章节" },
+  { key: "note", label: "宣传笔记" },
 ];
+
+const SHOWNOTES_BLOCK_TYPES = [
+  "shownotes_intro",
+  "shownotes_guest_intro",
+  "shownotes_mentions",
+] as const;
 
 interface MaterialsPanelProps {
   episodeId: string;
@@ -21,9 +30,9 @@ interface MaterialsPanelProps {
 
 export function MaterialsPanel({ episodeId, enabledTypes }: MaterialsPanelProps) {
   const [materials, setMaterials] = useState<Record<string, MaterialRow>>({});
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["type"]>("title");
+  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>("title");
 
-  const tabs = TABS.filter((t) => enabledTypes.length === 0 || enabledTypes.includes(t.type));
+  const tabs = TABS.filter((t) => enabledTypes.length === 0 || enabledTypes.includes(t.key));
 
   useEffect(() => {
     const supabase = createClient();
@@ -38,54 +47,58 @@ export function MaterialsPanel({ episodeId, enabledTypes }: MaterialsPanelProps)
     }
 
     void load();
-    const interval = setInterval(() => {
-      const anyInFlight = Object.values(materials).some(
-        (m) => m.status === "pending" || m.status === "generating",
-      );
-      const noneYet = tabs.some((t) => !materials[t.type]);
-      if (anyInFlight || noneYet) void load();
-    }, 3000);
+    const interval = setInterval(() => void load(), 3000);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episodeId]);
 
   if (tabs.length === 0) return null;
 
+  function isConfirmed(key: (typeof TABS)[number]["key"]): boolean {
+    if (key === "shownotes") {
+      return SHOWNOTES_BLOCK_TYPES.every((type) => !!materials[type]?.confirmed_at);
+    }
+    return !!materials[key]?.confirmed_at;
+  }
+
   return (
-    <div className="mt-8">
+    <div>
       <h2 className="mb-3 text-lg font-semibold">发布物料</h2>
       <div className="mb-4 flex gap-2 border-b">
         {tabs.map((t) => (
           <button
-            key={t.type}
+            key={t.key}
             type="button"
-            onClick={() => setActiveTab(t.type)}
+            onClick={() => setActiveTab(t.key)}
             className={`px-3 py-2 text-sm ${
-              activeTab === t.type
+              activeTab === t.key
                 ? "border-primary text-primary border-b-2 font-medium"
                 : "text-muted-foreground"
             }`}
           >
             {t.label}
-            {materials[t.type]?.confirmed_at && " ✓"}
+            {isConfirmed(t.key) && " ✓"}
           </button>
         ))}
       </div>
 
-      {tabs.map(
-        (t) =>
-          activeTab === t.type && (
-            <MaterialTab
-              key={t.type}
-              episodeId={episodeId}
-              type={t.type}
-              material={materials[t.type] ?? null}
-            />
-          ),
+      {activeTab === "shownotes" ? (
+        <ShownotesPanel
+          episodeId={episodeId}
+          chaptersMaterial={materials.chapters ?? null}
+          introMaterial={materials.shownotes_intro ?? null}
+          guestIntroMaterial={materials.shownotes_guest_intro ?? null}
+          mentionsMaterial={materials.shownotes_mentions ?? null}
+        />
+      ) : (
+        <MaterialTab
+          episodeId={episodeId}
+          type={activeTab}
+          material={materials[activeTab] ?? null}
+        />
       )}
     </div>
   );

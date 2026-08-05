@@ -2,8 +2,16 @@ import type { ZodType } from "zod";
 import type { TranscriptSegment } from "@/lib/services/transcript";
 import type { Guest } from "@/lib/services/episode";
 
-// 目前只实现文本四件套；封面/金句/切片是配置型或需要两级漏斗，不走这套统一 generate 流程
-export type TextMaterialType = "title" | "shownotes" | "chapters" | "note";
+// 目前只实现文本几件套；封面/金句/切片是配置型或需要两级漏斗，不走这套统一 generate 流程。
+// shownotes 按产品设计拆成三个独立生成/独立版本历史的块（简介/嘉宾介绍/提及清单）——
+// 时间轴章节复用 chapters（只读引用，不重复存储），固定尾部依赖节目设置页，还没做。
+export type TextMaterialType =
+  | "title"
+  | "shownotes_intro"
+  | "shownotes_guest_intro"
+  | "shownotes_mentions"
+  | "chapters"
+  | "note";
 
 export interface MaterialGenerationContext {
   episodeId: string;

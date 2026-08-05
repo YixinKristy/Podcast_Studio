@@ -5,15 +5,18 @@ import { createClient } from "@/lib/db/supabase/client";
 import type { Database } from "@/lib/db/database.types";
 import { MaterialTab } from "./material-tab";
 import { ShownotesPanel } from "./shownotes-panel";
+import { ClipsPanel } from "./clips-panel";
 
 type MaterialRow = Database["public"]["Tables"]["materials"]["Row"];
 
 // Shownotes 在 UI 上还是一个 Tab，但底下是三个独立生成的物料类型（见 shownotes-panel.tsx），
-// "shownotes" 这个 key 只用来做 Tab 导航，不对应 materials 表里的任何一行
-const TABS: { key: "title" | "shownotes" | "chapters" | "note"; label: string }[] = [
+// "shownotes" 这个 key 只用来做 Tab 导航，不对应 materials 表里的任何一行。
+// "clips" 反过来——对应真实的一行 material，但生成方式跟其它 Tab 完全不同（见 clips-panel.tsx）。
+const TABS: { key: "title" | "shownotes" | "chapters" | "note" | "clips"; label: string }[] = [
   { key: "title", label: "标题" },
   { key: "shownotes", label: "Shownotes" },
   { key: "chapters", label: "章节" },
+  { key: "clips", label: "切片" },
   { key: "note", label: "宣传笔记" },
 ];
 
@@ -85,7 +88,7 @@ export function MaterialsPanel({ episodeId, enabledTypes }: MaterialsPanelProps)
         ))}
       </div>
 
-      {activeTab === "shownotes" ? (
+      {activeTab === "shownotes" && (
         <ShownotesPanel
           episodeId={episodeId}
           chaptersMaterial={materials.chapters ?? null}
@@ -93,7 +96,11 @@ export function MaterialsPanel({ episodeId, enabledTypes }: MaterialsPanelProps)
           guestIntroMaterial={materials.shownotes_guest_intro ?? null}
           mentionsMaterial={materials.shownotes_mentions ?? null}
         />
-      ) : (
+      )}
+      {activeTab === "clips" && (
+        <ClipsPanel episodeId={episodeId} material={materials.clips ?? null} />
+      )}
+      {activeTab !== "shownotes" && activeTab !== "clips" && (
         <MaterialTab
           episodeId={episodeId}
           type={activeTab}

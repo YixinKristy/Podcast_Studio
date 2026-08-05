@@ -10,9 +10,10 @@ import type { MaterialDefinition } from "./types";
 // 物料无论是批量自动触发还是用户手动点「开始生成/重新生成」，都走 generateMaterial()，
 // 所以在这里统一检查最省心：每次一个物料跑完（不管成功还是失败）就看一眼，这期启用的
 // 物料是不是全都到终态了（ready 或 failed，不再是 pending/generating）。
-// 只看已经有生成器的文本类物料——封面/金句/切片还没实现，不能拿从没跑过的它们卡住状态机。
+// 只看已经有生成器的类型——封面/金句还没实现，不能拿从没跑过的它们卡住状态机。
 // generate_materials 里的"shownotes"是粗粒度勾选，要展开成三个实际物料类型才能对得上
-// materials 表里真实存在的行。
+// materials 表里真实存在的行；"clips"走单独的生成路径（trigger/generate-clips.ts），
+// 不经过 expandRequestedType（那个只管文本类物料），这里单独加进去一起追踪。
 export async function maybeCompleteGeneration(
   supabase: SupabaseClient<Database>,
   episodeId: string,
@@ -24,16 +25,16 @@ export async function maybeCompleteGeneration(
     .maybeSingle();
   if (!episode || episode.status !== "generating") return;
 
-  const enabledTypes = Array.from(
-    new Set(((episode.generate_materials as string[] | null) ?? []).flatMap(expandRequestedType)),
-  );
+  const requested = (episode.generate_materials as string[] | null) ?? [];
+  const enabledTypes: string[] = Array.from(new Set(requested.flatMap(expandRequestedType)));
+  if (requested.includes("clips")) enabledTypes.push("clips");
   if (enabledTypes.length === 0) return;
 
   const { data: materials } = await supabase
     .from("materials")
     .select("type, status")
     .eq("episode_id", episodeId)
-    .in("type", enabledTypes);
+    .in("type", enabledTypes as Database["public"]["Enums"]["material_type"][]);
 
   const allDone = enabledTypes.every((type) => {
     const row = materials?.find((m) => m.type === type);

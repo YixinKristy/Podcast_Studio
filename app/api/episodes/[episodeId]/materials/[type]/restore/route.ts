@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/db/supabase/server";
 import { getOrCreateMaterial, restoreVersion } from "@/lib/services/materials/store";
-import { isTextMaterialType } from "@/lib/services/materials/definitions";
+import { isGeneratableMaterialType } from "@/lib/services/materials/definitions";
 
 const bodySchema = z.object({ version: z.number().int().positive() });
 
@@ -11,7 +11,7 @@ export async function POST(
   { params }: { params: Promise<{ episodeId: string; type: string }> },
 ) {
   const { episodeId, type } = await params;
-  if (!isTextMaterialType(type)) {
+  if (!isGeneratableMaterialType(type)) {
     return NextResponse.json({ error: "不支持的物料类型" }, { status: 400 });
   }
 

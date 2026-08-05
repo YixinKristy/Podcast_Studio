@@ -24,7 +24,7 @@ export async function beginTranscription(supabase: SupabaseClient<Database>, epi
     .update({ status: "transcribing" })
     .eq("id", episodeId)
     .in("status", ["uploaded", "transcribe_failed"])
-    .select("id, audio_url, generate_materials")
+    .select("id, audio_url, generate_materials, show_id")
     .maybeSingle();
 }
 

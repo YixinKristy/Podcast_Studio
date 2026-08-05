@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/db/supabase/admin";
 import { beginTranscription } from "@/lib/services/episode";
 import { deductQuotaForGeneration } from "@/lib/services/quota";
 import { getSignedDownloadUrl, getSignedUploadUrl, objectKeyFromUrl } from "@/lib/storage/oss";
+import { buildClipUploadSlots } from "@/lib/services/clips/upload-slots";
 import type { transcribeEpisode } from "@/trigger/transcribe-episode";
 
 export async function POST(
@@ -49,15 +50,25 @@ export async function POST(
 
   const objectKey = objectKeyFromUrl(episode.audio_url!);
   const monoObjectKey = objectKey.replace(/\.[^./]+$/, "") + ".mono.wav";
+  const materialTypes = (episode.generate_materials as string[] | null) ?? [];
+
+  // 切片生成在转写完之后才跑，可能隔了不短的时间，原始音频的下载 URL 得比单纯转写用的
+  // 期限长一些；上传槽位也只能现在（Next.js 侧，能安全用 ali-oss 签 URL）提前签好，
+  // 任务里不能自己 import lib/storage/oss.ts
+  const clipsDownloadUrl = getSignedDownloadUrl(objectKey, 4 * 60 * 60);
+  const clipUploadSlots = materialTypes.includes("clips")
+    ? buildClipUploadSlots(episode.show_id)
+    : undefined;
 
   await tasks.trigger<typeof transcribeEpisode>("transcribe-episode", {
     episodeId,
     userId: user.id,
     attemptId,
-    downloadUrl: getSignedDownloadUrl(objectKey, 2 * 60 * 60),
+    downloadUrl: clipsDownloadUrl,
     monoUploadUrl: getSignedUploadUrl(monoObjectKey, 2 * 60 * 60),
     monoDownloadUrl: getSignedDownloadUrl(monoObjectKey, 2 * 60 * 60),
-    materialTypes: (episode.generate_materials as string[] | null) ?? [],
+    materialTypes,
+    clipUploadSlots,
   });
 
   return NextResponse.json({ ok: true });

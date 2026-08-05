@@ -135,10 +135,30 @@ describe("maybeCompleteGeneration：generating -> ready 状态迁移", () => {
     expect(await statusOf(id)).toBe("ready");
   });
 
-  it("generate_materials 里有还没实现生成器的类型（比如切片）时忽略它们，不会卡住状态机", async () => {
+  it("generate_materials 里有还没实现生成器的类型（比如封面/金句）时忽略它们，不会卡住状态机", async () => {
+    const id = await createEpisode(["title", "cover", "quotes"]);
+    await setMaterial(id, "title", "ready");
+    // cover/quotes 没有 material 行——还没有生成器，从没被创建过
+
+    await maybeCompleteGeneration(admin, id);
+
+    expect(await statusOf(id)).toBe("ready");
+  });
+
+  it("clips 现在有生成器了，会被一起追踪——只做完 title 不会提前迁移", async () => {
     const id = await createEpisode(["title", "clips"]);
     await setMaterial(id, "title", "ready");
-    // clips 没有 material 行——它还没有生成器，从没被创建过
+    // clips 还没做完
+
+    await maybeCompleteGeneration(admin, id);
+
+    expect(await statusOf(id)).toBe("generating");
+  });
+
+  it("clips 和 title 都到终态后才迁移", async () => {
+    const id = await createEpisode(["title", "clips"]);
+    await setMaterial(id, "title", "ready");
+    await setMaterial(id, "clips", "ready");
 
     await maybeCompleteGeneration(admin, id);
 

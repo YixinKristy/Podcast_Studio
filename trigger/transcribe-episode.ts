@@ -22,6 +22,7 @@ import {
 } from "@/lib/services/transcript";
 import { refundQuotaForFailure } from "@/lib/services/quota";
 import type { generateMaterials } from "./generate-materials";
+import type { generateClips } from "./generate-clips";
 
 const execFileAsync = promisify(execFile);
 
@@ -98,6 +99,7 @@ export const transcribeEpisode = task({
     monoUploadUrl: string;
     monoDownloadUrl: string;
     materialTypes: string[];
+    clipUploadSlots?: { objectKey: string; uploadUrl: string }[];
   }) => {
     const ffmpegPath = process.env.FFMPEG_PATH ?? "ffmpeg";
     const supabase = getAdminClient();
@@ -184,10 +186,22 @@ export const transcribeEpisode = task({
 
       logger.info("转写完成", { segments: segments.length, speakerCount, lowConfidence });
 
-      if (payload.materialTypes.length > 0) {
+      const textMaterialTypes = payload.materialTypes.filter((t) => t !== "clips");
+      if (textMaterialTypes.length > 0) {
         await tasks.trigger<typeof generateMaterials>("generate-materials", {
           episodeId: payload.episodeId,
-          materialTypes: payload.materialTypes,
+          materialTypes: textMaterialTypes,
+        });
+      }
+      // 切片走单独的任务（要跑 ffmpeg，跟文本物料的同步 LLM 调用不是一回事），
+      // 不能塞进 generate-materials 那批 Promise.allSettled 里。
+      // downloadUrl/uploadSlots 是 /start 路由（Next.js 侧）提前签好传过来的——
+      // 这个任务本身不能 import lib/storage/oss.ts（ali-oss 打包问题）
+      if (payload.materialTypes.includes("clips") && payload.clipUploadSlots) {
+        await tasks.trigger<typeof generateClips>("generate-clips", {
+          episodeId: payload.episodeId,
+          downloadUrl: payload.downloadUrl,
+          uploadSlots: payload.clipUploadSlots,
         });
       }
 

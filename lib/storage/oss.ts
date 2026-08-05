@@ -1,5 +1,6 @@
 import OSS from "ali-oss";
-import { randomUUID } from "node:crypto";
+
+export { buildEpisodeObjectKey, objectKeyFromUrl, unsignedObjectUrl } from "./oss-keys";
 
 let client: OSS | null = null;
 
@@ -16,13 +17,9 @@ export function getOssClient(): OSS {
   return client;
 }
 
-export function buildEpisodeObjectKey(showId: string, fileName: string): string {
-  const ext = fileName.includes(".") ? fileName.slice(fileName.lastIndexOf(".")) : "";
-  return `episodes/${showId}/${randomUUID()}${ext}`;
-}
-
 // 给 Trigger.dev 任务用的签名 URL：那边不能直接依赖 ali-oss
-// （它依赖的 urllib 里有个动态 require("proxy-agent")，esbuild 打包不过去），
+// （它依赖的 urllib 里有个动态 require("proxy-agent")，esbuild 打包不过去，
+// 连带这个文件里任何一个 export 都不能被任务 import——纯字符串处理挪去了 oss-keys.ts），
 // 所以任务里只用 fetch 走签名 URL，OSS SDK 留在这边。
 export function getSignedDownloadUrl(objectKey: string, expiresInSeconds = 3600): string {
   return getOssClient().signatureUrl(objectKey, { expires: expiresInSeconds });
@@ -30,12 +27,4 @@ export function getSignedDownloadUrl(objectKey: string, expiresInSeconds = 3600)
 
 export function getSignedUploadUrl(objectKey: string, expiresInSeconds = 3600): string {
   return getOssClient().signatureUrl(objectKey, { expires: expiresInSeconds, method: "PUT" });
-}
-
-export function objectKeyFromUrl(url: string): string {
-  const base = `https://${process.env.ALIYUN_OSS_BUCKET}.${process.env.ALIYUN_OSS_REGION}.aliyuncs.com/`;
-  if (!url.startsWith(base)) {
-    throw new Error(`不是这个 bucket 的 URL: ${url}`);
-  }
-  return url.slice(base.length);
 }

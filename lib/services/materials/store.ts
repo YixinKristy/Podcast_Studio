@@ -1,13 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/db/database.types";
-import type { TextMaterialType } from "./types";
+
+// 这几个函数是纯粹的状态/版本存取，跟具体物料怎么生成的（同步 LLM 调用 vs Trigger.dev 任务
+// 里跑 ffmpeg）无关，所以类型上不绑定 TextMaterialType，接受完整的物料类型枚举——
+// 切片（clips）就是复用这套存取但走不同生成路径的例子
+type MaterialType = Database["public"]["Enums"]["material_type"];
 
 const MAX_VERSIONS = 5; // PRD：生成型物料保留 5 版
 
 export async function getOrCreateMaterial(
   supabase: SupabaseClient<Database>,
   episodeId: string,
-  type: TextMaterialType,
+  type: MaterialType,
 ): Promise<string> {
   const { data: existing } = await supabase
     .from("materials")
@@ -29,7 +33,7 @@ export async function getOrCreateMaterial(
 export async function markGenerating(
   supabase: SupabaseClient<Database>,
   episodeId: string,
-  type: TextMaterialType,
+  type: MaterialType,
 ): Promise<string> {
   const materialId = await getOrCreateMaterial(supabase, episodeId, type);
   // updated_at 没有数据库触发器自动维护，这里手动打时间戳——

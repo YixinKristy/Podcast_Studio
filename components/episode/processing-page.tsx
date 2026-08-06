@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { Database } from "@/lib/db/database.types";
 import type { TranscriptSegment } from "@/lib/services/transcript";
 import { MaterialsPanel } from "./materials-panel";
+import { RoughCutPanel } from "./rough-cut-panel";
 
 type EpisodeRow = Pick<
   Database["public"]["Tables"]["episodes"]["Row"],
@@ -55,10 +56,16 @@ function currentStageIndex(status: string): number {
   return 0;
 }
 
+const SECTIONS = [
+  { key: "roughcut", label: "粗剪" },
+  { key: "materials", label: "发布物料" },
+] as const;
+
 export function ProcessingPage({ episodeId, initialEpisode, showName }: ProcessingPageProps) {
   const [episode, setEpisode] = useState<EpisodeRow>(initialEpisode);
   const [retrying, setRetrying] = useState(false);
   const [audioPlaybackUrl, setAudioPlaybackUrl] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<(typeof SECTIONS)[number]["key"]>("roughcut");
   const audioRef = useRef<HTMLAudioElement>(null);
   const startedAtRef = useRef(Date.now());
 
@@ -210,14 +217,43 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
           </div>
 
           <div className="md:col-span-3">
-            {(episode.status === "generating" ||
-              episode.status === "ready" ||
-              episode.status === "published") && (
-              <MaterialsPanel
-                episodeId={episodeId}
-                enabledTypes={(episode.generate_materials as string[] | null) ?? []}
-              />
-            )}
+            {/* docs/04 Stage 1 粗剪 跟 Stage 2 七件套发布物料是不同阶段的东西，
+                分 Tab 展示——两块内容都不小，堆在一个栏里太乱 */}
+            {(() => {
+              const showMaterials =
+                episode.status === "generating" ||
+                episode.status === "ready" ||
+                episode.status === "published";
+              const sections = SECTIONS.filter((s) => s.key !== "materials" || showMaterials);
+              return (
+                <>
+                  <div className="mb-4 flex gap-2 border-b">
+                    {sections.map((s) => (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => setActiveSection(s.key)}
+                        className={`px-3 py-2 text-sm ${
+                          activeSection === s.key
+                            ? "border-primary text-primary border-b-2 font-medium"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {activeSection === "roughcut" && <RoughCutPanel episodeId={episodeId} />}
+                  {activeSection === "materials" && showMaterials && (
+                    <MaterialsPanel
+                      episodeId={episodeId}
+                      enabledTypes={(episode.generate_materials as string[] | null) ?? []}
+                    />
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

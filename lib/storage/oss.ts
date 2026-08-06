@@ -25,6 +25,32 @@ export function getSignedDownloadUrl(objectKey: string, expiresInSeconds = 3600)
   return getOssClient().signatureUrl(objectKey, { expires: expiresInSeconds });
 }
 
+// filename 常常带中文/emoji，纯 ASCII 的 filename= 那部分只是给不支持 filename* 的老浏览器
+// 兜底，实际显示名靠 RFC 5987 的 filename*=UTF-8''...。filename 来自 LLM 生成的标题，
+// 先去掉换行/分号/引号防止头注入。
+export function buildContentDisposition(filename: string): string {
+  const safe = filename.replace(/[\r\n;"]/g, "");
+  const asciiFallback = safe.replace(/[^\x20-\x7E]/g, "_") || "download.mp3";
+  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(safe)}`;
+}
+
+// 给"下载"按钮用的签名 URL——跟上面播放用的那个签名 URL 的区别是带了
+// content-disposition: attachment。播放用的 <audio src> 走的是媒体请求管线，不受这个
+// 头影响照样能放；但 <a href download> 只有同源资源才会尊重 download 属性，OSS 是跨域的，
+// 不加这个响应头点了完全没反应——用户会以为按钮坏了
+export function getSignedDownloadUrlAsAttachment(
+  objectKey: string,
+  filename: string,
+  expiresInSeconds = 3600,
+): string {
+  return getOssClient().signatureUrl(objectKey, {
+    expires: expiresInSeconds,
+    response: {
+      "content-disposition": buildContentDisposition(filename),
+    },
+  });
+}
+
 export function getSignedUploadUrl(objectKey: string, expiresInSeconds = 3600): string {
   return getOssClient().signatureUrl(objectKey, { expires: expiresInSeconds, method: "PUT" });
 }

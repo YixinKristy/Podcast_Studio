@@ -5,7 +5,11 @@ config({ path: ".env.local" });
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/lib/db/database.types";
-import { updateSelection, type StoredSuggestion } from "@/lib/services/roughcut/generate";
+import {
+  updateSelection,
+  type StoredSuggestion,
+  type StoredStructuralAnalysis,
+} from "@/lib/services/roughcut/generate";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -47,6 +51,33 @@ const SEED_SUGGESTIONS: StoredSuggestion[] = [
   },
 ];
 
+const SEED_STRUCTURAL_ANALYSIS: StoredStructuralAnalysis = {
+  mainThread: "测试主线",
+  diagnosis: [],
+  summary: "测试摘要",
+  style: "concise",
+  originalDurationSeconds: 100,
+  targetDurationSeconds: 55,
+  estimatedDurationSeconds: 60,
+  segments: [
+    {
+      id: "seg-0",
+      startSeconds: 30,
+      endSeconds: 40,
+      topic: "无关的闲聊",
+      relation: "irrelevant",
+      infoDensity: 1,
+      tension: 0,
+      refsBack: [],
+      referencedBy: [],
+      action: "delete",
+      reason: "跟主线无关",
+      confidence: 0.8,
+      selected: false,
+    },
+  ],
+};
+
 beforeAll(async () => {
   const { data: user, error } = await admin.auth.admin.createUser({
     email: `roughcut-selection-${Date.now()}@example.com`,
@@ -79,6 +110,8 @@ beforeAll(async () => {
       status: "ready",
       suggestions:
         SEED_SUGGESTIONS as unknown as Database["public"]["Tables"]["rough_cuts"]["Insert"]["suggestions"],
+      structural_analysis:
+        SEED_STRUCTURAL_ANALYSIS as unknown as Database["public"]["Tables"]["rough_cuts"]["Insert"]["structural_analysis"],
     })
     .select("id")
     .single();
@@ -117,5 +150,20 @@ describe("updateSelection", () => {
     const suggestions = data?.suggestions as unknown as StoredSuggestion[];
 
     expect(suggestions.every((s) => !s.selected)).toBe(true);
+  });
+
+  it("seg- 开头的 id 会同步更新 structural_analysis.segments 里对应段落的勾选状态", async () => {
+    await updateSelection(admin, episodeId, ["seg-0"]);
+
+    const { data } = await admin
+      .from("rough_cuts")
+      .select("structural_analysis")
+      .eq("id", roughCutId)
+      .single();
+    const structuralAnalysis = data?.structural_analysis as unknown as StoredStructuralAnalysis;
+
+    expect(structuralAnalysis.segments.find((s) => s.id === "seg-0")?.selected).toBe(true);
+    // mainThread/summary 等其它字段不应该被这次更新弄丢
+    expect(structuralAnalysis.mainThread).toBe("测试主线");
   });
 });

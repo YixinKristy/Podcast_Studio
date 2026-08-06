@@ -9,6 +9,7 @@ import {
   roughCutAnalysisSchema,
   buildStructurePrompt,
   structureReportSchema,
+  resolveStructuralSegments,
   buildSegmentDecisionPrompt,
   segmentDecisionsSchema,
   ROUGHCUT_STYLE_PRESETS,
@@ -102,16 +103,21 @@ async function runStructuralPasses(
   instruction?: string,
 ): Promise<StoredStructuralAnalysis> {
   const pass1 = buildStructurePrompt(context);
-  const structureReport = await generateStructured({
+  const rawReport = await generateStructured({
     system: pass1.system,
     user: pass1.user,
     schema: structureReportSchema,
   });
+  // LLM 给的是转录行号，这里换算成真实的秒数——保证段落边界一定落在真实存在的转录行上，
+  // 不会出现时间戳和实际音频内容对不上的情况
+  const resolvedSegments = resolveStructuralSegments(rawReport.segments, context.segments);
 
   const targetDurationSeconds = originalDurationSeconds * ROUGHCUT_STYLE_PRESETS[style].ratio;
   const pass2 = buildSegmentDecisionPrompt(
     context,
-    structureReport,
+    rawReport.mainThread,
+    rawReport.diagnosis,
+    resolvedSegments,
     style,
     targetDurationSeconds,
     instruction,
@@ -123,7 +129,7 @@ async function runStructuralPasses(
   });
 
   const decisionByIndex = new Map(decisions.decisions.map((d) => [d.segmentIndex, d]));
-  const segments: StoredSegment[] = structureReport.segments.map((seg, i) => {
+  const segments: StoredSegment[] = resolvedSegments.map((seg, i) => {
     const decision = decisionByIndex.get(i);
     return {
       id: `seg-${i}`,
@@ -139,8 +145,8 @@ async function runStructuralPasses(
   });
 
   return {
-    mainThread: structureReport.mainThread,
-    diagnosis: structureReport.diagnosis,
+    mainThread: rawReport.mainThread,
+    diagnosis: rawReport.diagnosis,
     summary: decisions.summary,
     style,
     originalDurationSeconds,

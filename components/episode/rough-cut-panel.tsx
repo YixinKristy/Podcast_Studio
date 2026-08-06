@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Database } from "@/lib/db/database.types";
 import type { StoredSuggestion } from "@/lib/services/roughcut/generate";
+import { computeKeptRanges } from "@/lib/services/roughcut/ranges";
 
 type RoughCutRow = Database["public"]["Tables"]["rough_cuts"]["Row"];
 
@@ -34,9 +35,11 @@ const TYPE_LABELS: Record<string, string> = {
 function SuggestionRow({
   suggestion,
   onToggle,
+  onPreview,
 }: {
   suggestion: StoredSuggestion;
   onToggle: (id: string, checked: boolean) => void;
+  onPreview?: (seconds: number) => void;
 }) {
   return (
     <label className="flex items-start gap-2 rounded-md border p-2 text-sm">
@@ -56,6 +59,19 @@ function SuggestionRow({
           <span className="text-muted-foreground text-xs">
             置信度 {Math.round(suggestion.confidence * 100)}%
           </span>
+          {onPreview && (
+            <button
+              type="button"
+              className="text-primary text-xs underline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onPreview(suggestion.startSeconds);
+              }}
+            >
+              ▶ 试听
+            </button>
+          )}
         </div>
         <p className="mt-1">{suggestion.reason}</p>
       </div>
@@ -65,9 +81,15 @@ function SuggestionRow({
 
 interface RoughCutPanelProps {
   episodeId: string;
+  episodeDurationSeconds: number;
+  onPreview?: (seconds: number) => void;
 }
 
-export function RoughCutPanel({ episodeId }: RoughCutPanelProps) {
+export function RoughCutPanel({
+  episodeId,
+  episodeDurationSeconds,
+  onPreview,
+}: RoughCutPanelProps) {
   const [roughCut, setRoughCut] = useState<RoughCutRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [rendering, setRendering] = useState(false);
@@ -243,6 +265,17 @@ export function RoughCutPanel({ episodeId }: RoughCutPanelProps) {
   const renderStatus = roughCut?.render_status ?? "pending";
   const renderElapsed = roughCut ? secondsSince(roughCut.updated_at) : 0;
 
+  // 之前有人反馈"勾了跟没勾一样"——大部分 L1 单条都很短，全靠听不容易感知到差别，
+  // 所以在勾选阶段就把预计剪掉/剩余的时长摆出来，不用等渲染完才知道到底剪了多少
+  const cutRanges = suggestions
+    .filter((s) => s.selected)
+    .map((s) => ({ startSeconds: s.startSeconds, endSeconds: s.endSeconds }));
+  const keptDuration = computeKeptRanges(cutRanges, episodeDurationSeconds).reduce(
+    (sum, r) => sum + (r.endSeconds - r.startSeconds),
+    0,
+  );
+  const cutDuration = episodeDurationSeconds - keptDuration;
+
   return (
     <div className="space-y-4">
       {roughCut?.outline_markdown && (
@@ -254,11 +287,22 @@ export function RoughCutPanel({ episodeId }: RoughCutPanelProps) {
         </details>
       )}
 
+      <p className="text-muted-foreground text-sm">
+        原时长 {formatTimestamp(episodeDurationSeconds)} → 按当前勾选预计剪后{" "}
+        <span className="text-foreground font-medium">{formatTimestamp(keptDuration)}</span>
+        （剪掉约 {Math.round(cutDuration)} 秒）
+      </p>
+
       <div className="space-y-2">
         <h4 className="text-sm font-semibold">填充词 / 长停顿（L1，默认采纳）</h4>
         {l1.length === 0 && <p className="text-muted-foreground text-sm">没有检测到</p>}
         {l1.map((s) => (
-          <SuggestionRow key={s.id} suggestion={s} onToggle={toggleSuggestion} />
+          <SuggestionRow
+            key={s.id}
+            suggestion={s}
+            onToggle={toggleSuggestion}
+            onPreview={onPreview}
+          />
         ))}
       </div>
 
@@ -268,7 +312,12 @@ export function RoughCutPanel({ episodeId }: RoughCutPanelProps) {
           <p className="text-muted-foreground text-sm">没有识别到明显可删的内容</p>
         )}
         {l2.map((s) => (
-          <SuggestionRow key={s.id} suggestion={s} onToggle={toggleSuggestion} />
+          <SuggestionRow
+            key={s.id}
+            suggestion={s}
+            onToggle={toggleSuggestion}
+            onPreview={onPreview}
+          />
         ))}
       </div>
 

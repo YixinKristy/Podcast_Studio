@@ -97,6 +97,12 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
       .catch(() => setAudioPlaybackUrl(null));
   }, [episode.audio_url, audioPlaybackUrl, episodeId]);
 
+  function seekAudio(seconds: number) {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = seconds;
+    void audioRef.current.play();
+  }
+
   async function retry() {
     setRetrying(true);
     try {
@@ -194,12 +200,7 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
                   key={i}
                   type="button"
                   className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
-                  onClick={() => {
-                    if (audioRef.current) {
-                      audioRef.current.currentTime = seg.start;
-                      void audioRef.current.play();
-                    }
-                  }}
+                  onClick={() => seekAudio(seg.start)}
                 >
                   {showSpeakerLabels && (
                     <span
@@ -244,7 +245,13 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
                     ))}
                   </div>
 
-                  {activeSection === "roughcut" && <RoughCutPanel episodeId={episodeId} />}
+                  {activeSection === "roughcut" && (
+                    <RoughCutPanel
+                      episodeId={episodeId}
+                      episodeDurationSeconds={episode.duration_seconds ?? 0}
+                      onPreview={seekAudio}
+                    />
+                  )}
                   {activeSection === "materials" && showMaterials && (
                     <MaterialsPanel
                       episodeId={episodeId}

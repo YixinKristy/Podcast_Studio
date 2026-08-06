@@ -42,7 +42,15 @@ function clipShareText(clip: ClipWithAudio): string {
   ].join("\n");
 }
 
-function ClipCard({ clip, audioUrl }: { clip: ClipWithAudio; audioUrl: string | undefined }) {
+function ClipCard({
+  clip,
+  audioUrl,
+  downloadUrl,
+}: {
+  clip: ClipWithAudio;
+  audioUrl: string | undefined;
+  downloadUrl: string | undefined;
+}) {
   const duration = Math.round(clip.endSeconds - clip.startSeconds);
 
   return (
@@ -117,8 +125,8 @@ function ClipCard({ clip, audioUrl }: { clip: ClipWithAudio; audioUrl: string | 
       </div>
 
       <div className="mt-3 flex gap-2">
-        {audioUrl && (
-          <a href={audioUrl} download className="text-sm underline">
+        {downloadUrl && (
+          <a href={downloadUrl} download className="text-sm underline">
             下载 mp3
           </a>
         )}
@@ -168,6 +176,7 @@ export function ClipsPanel({ episodeId, material }: ClipsPanelProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
   const [audioUrls, setAudioUrls] = useState<string[]>([]);
+  const [downloadUrls, setDownloadUrls] = useState<string[]>([]);
 
   const status = material?.status ?? "pending";
   const content = (material?.content as unknown as ClipsStoredContent | null) ?? null;
@@ -176,8 +185,14 @@ export function ClipsPanel({ episodeId, material }: ClipsPanelProps) {
     if (status !== "ready" || !content || content.clips.length === 0) return;
     fetch(`/api/episodes/${episodeId}/materials/clips/audio-urls`)
       .then((res) => res.json())
-      .then((json) => setAudioUrls(json.urls ?? []))
-      .catch(() => setAudioUrls([]));
+      .then((json) => {
+        setAudioUrls(json.urls ?? []);
+        setDownloadUrls(json.downloadUrls ?? []);
+      })
+      .catch(() => {
+        setAudioUrls([]);
+        setDownloadUrls([]);
+      });
     // content 只在版本变化时才需要重新签 URL，用 version 而不是整个 content 对象做依赖
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episodeId, status, material?.version]);
@@ -264,7 +279,7 @@ export function ClipsPanel({ episodeId, material }: ClipsPanelProps) {
   return (
     <div className="space-y-4">
       {content.clips.map((clip, i) => (
-        <ClipCard key={i} clip={clip} audioUrl={audioUrls[i]} />
+        <ClipCard key={i} clip={clip} audioUrl={audioUrls[i]} downloadUrl={downloadUrls[i]} />
       ))}
 
       <RejectedList rejected={content.rejected} />

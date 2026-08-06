@@ -220,6 +220,7 @@ export function RoughCutPanel({
   const [instruction, setInstruction] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [style, setStyle] = useState<RoughCutStyle>("concise");
 
   async function refetch() {
@@ -274,8 +275,14 @@ export function RoughCutPanel({
     if (roughCut?.render_status !== "ready" || !roughCut.audio_url) return;
     fetch(`/api/episodes/${episodeId}/rough-cut/audio-url`)
       .then((res) => res.json())
-      .then((json) => setAudioUrl(json.url ?? null))
-      .catch(() => setAudioUrl(null));
+      .then((json) => {
+        setAudioUrl(json.url ?? null);
+        setDownloadUrl(json.downloadUrl ?? null);
+      })
+      .catch(() => {
+        setAudioUrl(null);
+        setDownloadUrl(null);
+      });
   }, [episodeId, roughCut?.render_status, roughCut?.audio_url]);
 
   async function generate() {
@@ -555,8 +562,8 @@ export function RoughCutPanel({
               </audio>
             )}
             <div className="flex gap-2">
-              {audioUrl && (
-                <a href={audioUrl} download className="text-sm underline">
+              {downloadUrl && (
+                <a href={downloadUrl} download className="text-sm underline">
                   下载粗剪音频
                 </a>
               )}

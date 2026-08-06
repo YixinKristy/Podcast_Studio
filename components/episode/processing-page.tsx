@@ -66,6 +66,7 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
   const [retrying, setRetrying] = useState(false);
   const [audioPlaybackUrl, setAudioPlaybackUrl] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<(typeof SECTIONS)[number]["key"]>("roughcut");
+  const [previewRange, setPreviewRange] = useState<{ id: string; endSeconds: number } | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const startedAtRef = useRef(Date.now());
 
@@ -96,6 +97,53 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
       .then((json) => setAudioPlaybackUrl(json.url ?? null))
       .catch(() => setAudioPlaybackUrl(null));
   }, [episode.audio_url, audioPlaybackUrl, episodeId]);
+
+  function seekAudio(seconds: number) {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = seconds;
+    void audioRef.current.play();
+    setPreviewRange(null);
+  }
+
+  // 粗剪建议的"试听"——跟普通跳转的区别是要在片段结尾自动停，不然用户听完
+  // 这几秒还得自己手动暂停，体验上不像是在"试听一个片段"。再点一次当前正在
+  // 试听的那条就是停止（toggle），图标状态跟着 previewRange 走。
+  function togglePreview(id: string, startSeconds: number, endSeconds: number) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (previewRange?.id === id) {
+      audio.pause();
+      setPreviewRange(null);
+      return;
+    }
+    audio.currentTime = startSeconds;
+    // 播放被浏览器自动播放策略拦截时，play() 的 promise 会 reject，浏览器还可能
+    // 顺带触发一次 pause 事件——如果提前标成"正在试听"，这个 pause 事件会立刻把
+    // 状态清掉，图标却已经切到了"播放中"，显得很诡异。等 play() 真正成功了再标状态。
+    audio
+      .play()
+      .then(() => setPreviewRange({ id, endSeconds }))
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !previewRange) return;
+    function handleTimeUpdate() {
+      if (audio && previewRange && audio.currentTime >= previewRange.endSeconds) {
+        audio.pause();
+      }
+    }
+    function handlePause() {
+      setPreviewRange(null);
+    }
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("pause", handlePause);
+    return () => {
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("pause", handlePause);
+    };
+  }, [previewRange]);
 
   async function retry() {
     setRetrying(true);
@@ -194,12 +242,7 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
                   key={i}
                   type="button"
                   className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
-                  onClick={() => {
-                    if (audioRef.current) {
-                      audioRef.current.currentTime = seg.start;
-                      void audioRef.current.play();
-                    }
-                  }}
+                  onClick={() => seekAudio(seg.start)}
                 >
                   {showSpeakerLabels && (
                     <span
@@ -244,7 +287,14 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
                     ))}
                   </div>
 
-                  {activeSection === "roughcut" && <RoughCutPanel episodeId={episodeId} />}
+                  {activeSection === "roughcut" && (
+                    <RoughCutPanel
+                      episodeId={episodeId}
+                      episodeDurationSeconds={episode.duration_seconds ?? 0}
+                      onPreview={togglePreview}
+                      previewingId={previewRange?.id ?? null}
+                    />
+                  )}
                   {activeSection === "materials" && showMaterials && (
                     <MaterialsPanel
                       episodeId={episodeId}

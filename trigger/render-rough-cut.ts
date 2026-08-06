@@ -16,7 +16,7 @@ import { task, logger } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/database.types";
 import { computeKeptRanges } from "@/lib/services/roughcut/ranges";
-import type { StoredSuggestion } from "@/lib/services/roughcut/generate";
+import type { StoredSuggestion, StoredStructuralAnalysis } from "@/lib/services/roughcut/generate";
 import { unsignedObjectUrl } from "@/lib/storage/oss-keys";
 
 const execFileAsync = promisify(execFile);
@@ -91,7 +91,7 @@ export const renderRoughCut = task({
 
     const { data: roughCut } = await supabase
       .from("rough_cuts")
-      .select("id, suggestions")
+      .select("id, suggestions, structural_analysis")
       .eq("episode_id", payload.episodeId)
       .single();
     if (!roughCut) {
@@ -114,9 +114,20 @@ export const renderRoughCut = task({
       if (totalDuration <= 0) throw new Error("这期还没有时长信息，无法渲染粗剪");
 
       const suggestions = roughCut.suggestions as unknown as StoredSuggestion[];
-      const cutRanges = suggestions
-        .filter((s) => s.selected)
+      const structuralAnalysis =
+        roughCut.structural_analysis as unknown as StoredStructuralAnalysis | null;
+      // 段落级取舍（Pass 1+2）只有 delete / pick_one 两种决策代表"真的要剪掉"，
+      // keep/compress/move_to_intro 都不产出可执行的剪切区间（compress 没有句级时间点，
+      // move_to_intro 是建议不自动执行）
+      const segmentCutRanges = (structuralAnalysis?.segments ?? [])
+        .filter((s) => s.selected && (s.action === "delete" || s.action === "pick_one"))
         .map((s) => ({ startSeconds: s.startSeconds, endSeconds: s.endSeconds }));
+      const cutRanges = [
+        ...suggestions
+          .filter((s) => s.selected)
+          .map((s) => ({ startSeconds: s.startSeconds, endSeconds: s.endSeconds })),
+        ...segmentCutRanges,
+      ];
 
       const keptRanges = computeKeptRanges(cutRanges, totalDuration);
       if (keptRanges.length === 0) {

@@ -258,6 +258,7 @@ export type Database = {
           outline_markdown: string | null;
           render_status: Database["public"]["Enums"]["material_status"];
           status: Database["public"]["Enums"]["material_status"];
+          structural_analysis: Json | null;
           suggestions: Json;
           updated_at: string;
           version: number;
@@ -270,6 +271,7 @@ export type Database = {
           outline_markdown?: string | null;
           render_status?: Database["public"]["Enums"]["material_status"];
           status?: Database["public"]["Enums"]["material_status"];
+          structural_analysis?: Json | null;
           suggestions?: Json;
           updated_at?: string;
           version?: number;
@@ -282,6 +284,7 @@ export type Database = {
           outline_markdown?: string | null;
           render_status?: Database["public"]["Enums"]["material_status"];
           status?: Database["public"]["Enums"]["material_status"];
+          structural_analysis?: Json | null;
           suggestions?: Json;
           updated_at?: string;
           version?: number;

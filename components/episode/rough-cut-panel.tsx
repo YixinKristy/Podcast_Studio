@@ -36,10 +36,12 @@ function SuggestionRow({
   suggestion,
   onToggle,
   onPreview,
+  previewing,
 }: {
   suggestion: StoredSuggestion;
   onToggle: (id: string, checked: boolean) => void;
-  onPreview?: (seconds: number) => void;
+  onPreview?: (id: string, startSeconds: number, endSeconds: number) => void;
+  previewing: boolean;
 }) {
   return (
     <label className="flex items-start gap-2 rounded-md border p-2 text-sm">
@@ -66,10 +68,10 @@ function SuggestionRow({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onPreview(suggestion.startSeconds);
+                onPreview(suggestion.id, suggestion.startSeconds, suggestion.endSeconds);
               }}
             >
-              ▶ 试听
+              {previewing ? "⏸ 停止" : "▶ 试听"}
             </button>
           )}
         </div>
@@ -82,13 +84,15 @@ function SuggestionRow({
 interface RoughCutPanelProps {
   episodeId: string;
   episodeDurationSeconds: number;
-  onPreview?: (seconds: number) => void;
+  onPreview?: (id: string, startSeconds: number, endSeconds: number) => void;
+  previewingId?: string | null;
 }
 
 export function RoughCutPanel({
   episodeId,
   episodeDurationSeconds,
   onPreview,
+  previewingId,
 }: RoughCutPanelProps) {
   const [roughCut, setRoughCut] = useState<RoughCutRow | null>(null);
   const [busy, setBusy] = useState(false);
@@ -302,6 +306,7 @@ export function RoughCutPanel({
             suggestion={s}
             onToggle={toggleSuggestion}
             onPreview={onPreview}
+            previewing={previewingId === s.id}
           />
         ))}
       </div>
@@ -317,6 +322,7 @@ export function RoughCutPanel({
             suggestion={s}
             onToggle={toggleSuggestion}
             onPreview={onPreview}
+            previewing={previewingId === s.id}
           />
         ))}
       </div>

@@ -12,6 +12,10 @@ export function getOssClient(): OSS {
       accessKeyId: process.env.ALIYUN_ACCESS_KEY_ID!,
       accessKeySecret: process.env.ALIYUN_ACCESS_KEY_SECRET!,
       bucket: process.env.ALIYUN_OSS_BUCKET!,
+      // 不设的话签名 URL 默认是 http://——本地开发页面本身也是 http，没问题；线上是
+      // https，浏览器对"HTTPS 页面下载 HTTP 文件"直接拦截（mixed content），下载按钮
+      // 点了没反应就是这个——踩过一次才知道这个默认值有多坑
+      secure: true,
     });
   }
   return client;

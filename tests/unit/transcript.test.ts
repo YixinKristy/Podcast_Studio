@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   averageConfidence,
   countSpeakers,
+  formatTranscriptMarkdown,
+  formatTranscriptPlainText,
   isLowConfidence,
   parseSegments,
   voiceActivityRatio,
@@ -79,5 +81,36 @@ describe("averageConfidence / isLowConfidence", () => {
       { text: "b", speaker: "0", start: 1, end: 2, confidence: 0.85 },
     ];
     expect(isLowConfidence(segments)).toBe(false);
+  });
+});
+
+describe("formatTranscriptPlainText / formatTranscriptMarkdown", () => {
+  const segments: TranscriptSegment[] = [
+    { text: "大家好", speaker: "0", start: 0, end: 2 },
+    { text: "欢迎收听", speaker: "1", start: 65, end: 68 },
+  ];
+
+  it("plain text: no speaker labels for single-speaker episodes", () => {
+    expect(formatTranscriptPlainText(segments, false)).toBe(
+      "[00:00] 大家好\n[01:05] 欢迎收听",
+    );
+  });
+
+  it("plain text: includes speaker labels when requested", () => {
+    expect(formatTranscriptPlainText(segments, true)).toBe(
+      "[00:00] 说话人0 大家好\n[01:05] 说话人1 欢迎收听",
+    );
+  });
+
+  it("markdown: timestamp in code span, blank line between segments", () => {
+    expect(formatTranscriptMarkdown(segments, false)).toBe(
+      "`[00:00]` 大家好\n\n`[01:05]` 欢迎收听",
+    );
+  });
+
+  it("markdown: speaker label rendered bold when requested", () => {
+    expect(formatTranscriptMarkdown(segments, true)).toBe(
+      "`[00:00]` **说话人0** 大家好\n\n`[01:05]` **说话人1** 欢迎收听",
+    );
   });
 });

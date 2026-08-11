@@ -53,3 +53,39 @@ export function isLowConfidence(segments: TranscriptSegment[]): boolean {
   const avg = averageConfidence(segments);
   return avg !== null && avg < LOW_CONFIDENCE_THRESHOLD;
 }
+
+function formatTimestamp(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+// P4 逐字稿导出（05-PRD §P4）：复制全文 / 下载 txt·markdown。单说话人节目不带说话人前缀，
+// 跟处理中页的显示逻辑保持一致。
+export function formatTranscriptPlainText(
+  segments: TranscriptSegment[],
+  showSpeakerLabels: boolean,
+): string {
+  return segments
+    .map((s) => {
+      const parts = [`[${formatTimestamp(s.start)}]`];
+      if (showSpeakerLabels) parts.push(`说话人${s.speaker}`);
+      parts.push(s.text);
+      return parts.join(" ");
+    })
+    .join("\n");
+}
+
+export function formatTranscriptMarkdown(
+  segments: TranscriptSegment[],
+  showSpeakerLabels: boolean,
+): string {
+  return segments
+    .map((s) => {
+      const parts = [`\`[${formatTimestamp(s.start)}]\``];
+      if (showSpeakerLabels) parts.push(`**说话人${s.speaker}**`);
+      parts.push(s.text);
+      return parts.join(" ");
+    })
+    .join("\n\n");
+}

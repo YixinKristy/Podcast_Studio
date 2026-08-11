@@ -5,7 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/db/supabase/client";
 import { Button } from "@/components/ui/button";
 import type { Database } from "@/lib/db/database.types";
-import type { TranscriptSegment } from "@/lib/services/transcript";
+import {
+  formatTranscriptMarkdown,
+  formatTranscriptPlainText,
+  type TranscriptSegment,
+} from "@/lib/services/transcript";
 import { MaterialsPanel } from "./materials-panel";
 import { RoughCutPanel } from "./rough-cut-panel";
 
@@ -67,8 +71,10 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
   const [audioPlaybackUrl, setAudioPlaybackUrl] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<(typeof SECTIONS)[number]["key"]>("roughcut");
   const [previewRange, setPreviewRange] = useState<{ id: string; endSeconds: number } | null>(null);
+  const [copied, setCopied] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const startedAtRef = useRef(Date.now());
+  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // generating 也要继续轮询——物料全部跑完后服务端会把状态迁移成 ready，
@@ -144,6 +150,33 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
       audio.removeEventListener("pause", handlePause);
     };
   }, [previewRange]);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    };
+  }, []);
+
+  async function copyTranscript() {
+    await navigator.clipboard.writeText(formatTranscriptPlainText(segments, showSpeakerLabels));
+    setCopied(true);
+    if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    copyResetRef.current = setTimeout(() => setCopied(false), 1500);
+  }
+
+  function downloadTranscript(format: "txt" | "md") {
+    const text =
+      format === "txt"
+        ? formatTranscriptPlainText(segments, showSpeakerLabels)
+        : formatTranscriptMarkdown(segments, showSpeakerLabels);
+    const blob = new Blob([text], { type: format === "txt" ? "text/plain" : "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${showName}-第${episode.episode_no}期-逐字稿.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function retry() {
     setRetrying(true);
@@ -235,6 +268,19 @@ export function ProcessingPage({ episodeId, initialEpisode, showName }: Processi
                 <track kind="captions" />
               </audio>
             )}
+
+            <div className="mb-2 flex items-center gap-3 text-sm">
+              <span className="text-muted-foreground">逐字稿导出：</span>
+              <button type="button" className="underline" onClick={copyTranscript}>
+                {copied ? "已复制" : "复制全文"}
+              </button>
+              <button type="button" className="underline" onClick={() => downloadTranscript("txt")}>
+                下载 txt
+              </button>
+              <button type="button" className="underline" onClick={() => downloadTranscript("md")}>
+                下载 md
+              </button>
+            </div>
 
             <div className="max-h-[70vh] space-y-1 overflow-y-auto rounded-xl border p-4">
               {segments.map((seg, i) => (

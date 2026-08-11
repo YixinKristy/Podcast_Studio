@@ -2,9 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOssClient, buildEpisodeObjectKey } from "@/lib/storage/oss";
 import type { Database } from "@/lib/db/database.types";
 
-// 线上 Vercel 在 iad1，OSS 在北京。4MB 分片经服务端转传时遇到过 ali-oss 60s
-// ResponseTimeoutError，导致用户一直卡在 0%。先把单片压小，后续再升级为浏览器直传 OSS。
-export const CHUNK_SIZE = 512 * 1024;
+export const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB，浏览器直传 OSS；服务端只签名和记录分片
 export const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB，见 docs/05 P2
 export const MAX_DURATION_SECONDS = 2 * 60 * 60; // 2h，说话人分离限制（docs/12 ★1）
 export const ACCEPTED_EXTENSIONS = ["mp3", "m4a", "wav", "aac", "mp4"]; // mp4 用于兜底 C10（视频容器）
@@ -147,6 +145,7 @@ export async function uploadPart(
     chunk,
     0,
     chunk.length,
+    { timeout: 5 * 60 * 1000 },
   );
 
   // upsert：同一分片重试上传也不会重复计数（幂等）
@@ -156,6 +155,63 @@ export async function uploadPart(
       { upload_session_id: sessionId, part_no: partNo, etag: result.etag },
       { onConflict: "upload_session_id,part_no" },
     );
+}
+
+async function getActiveUploadSession(
+  supabase: SupabaseClient<Database>,
+  sessionId: string,
+): Promise<Database["public"]["Tables"]["upload_sessions"]["Row"]> {
+  const { data: session, error } = await supabase
+    .from("upload_sessions")
+    .select("*")
+    .eq("id", sessionId)
+    .eq("status", "uploading")
+    .single();
+
+  if (error || !session) {
+    throw new UploadSessionError("会话不存在或已失效");
+  }
+  if (new Date(session.expires_at) < new Date()) {
+    throw new UploadSessionError("上传会话已过期（超过 24 小时），请重新选择文件上传");
+  }
+  return session;
+}
+
+export async function getPartUploadUrl(
+  supabase: SupabaseClient<Database>,
+  sessionId: string,
+  partNo: number,
+): Promise<string> {
+  const session = await getActiveUploadSession(supabase, sessionId);
+  if (partNo > session.total_chunks) {
+    throw new UploadSessionError("分片序号超出范围");
+  }
+
+  return getOssClient().signatureUrl(session.oss_object_key, {
+    expires: 10 * 60,
+    method: "PUT",
+    subResource: {
+      partNumber: partNo,
+      uploadId: session.oss_upload_id,
+    },
+  });
+}
+
+export async function recordUploadedPart(
+  supabase: SupabaseClient<Database>,
+  sessionId: string,
+  partNo: number,
+  etag: string,
+): Promise<void> {
+  const session = await getActiveUploadSession(supabase, sessionId);
+  if (partNo > session.total_chunks) {
+    throw new UploadSessionError("分片序号超出范围");
+  }
+
+  await supabase.from("upload_parts").upsert(
+    { upload_session_id: sessionId, part_no: partNo, etag },
+    { onConflict: "upload_session_id,part_no" },
+  );
 }
 
 export class UploadSessionError extends Error {}

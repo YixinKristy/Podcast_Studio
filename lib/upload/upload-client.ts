@@ -23,9 +23,69 @@ interface InitResponse {
 }
 
 const MAX_RETRIES = 4;
+const PARALLEL_UPLOADS = 4;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function relayUploadChunk(
+  sessionId: string,
+  partNo: number,
+  chunk: Blob,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`/api/uploads/${sessionId}/parts/${partNo}`, {
+    method: "PUT",
+    body: chunk,
+    signal,
+  });
+  if (res.ok) return;
+  if (res.status === 410) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json.error ?? "上传会话已失效，请重新开始");
+  }
+  throw new Error(`分片 ${partNo} 上传失败（HTTP ${res.status}）`);
+}
+
+async function directUploadChunk(
+  sessionId: string,
+  partNo: number,
+  chunk: Blob,
+  signal?: AbortSignal,
+): Promise<void> {
+  const signRes = await fetch(`/api/uploads/${sessionId}/parts/${partNo}`, { signal });
+  if (!signRes.ok) {
+    const json = await signRes.json().catch(() => ({}));
+    throw new Error(json.error ?? "创建上传链接失败");
+  }
+  const { uploadUrl } = (await signRes.json()) as { uploadUrl?: string };
+  if (!uploadUrl) throw new Error("创建上传链接失败");
+
+  const uploadRes = await fetch(uploadUrl, {
+    method: "PUT",
+    body: chunk,
+    signal,
+  });
+  if (!uploadRes.ok) {
+    throw new Error(`分片 ${partNo} 直传失败（HTTP ${uploadRes.status}）`);
+  }
+
+  const etag = uploadRes.headers.get("ETag") ?? uploadRes.headers.get("etag");
+  if (!etag) {
+    throw new Error("OSS 没有暴露 ETag，请检查 Bucket CORS 的 ExposeHeader");
+  }
+
+  const recordRes = await fetch(`/api/uploads/${sessionId}/parts/${partNo}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ etag }),
+    signal,
+  });
+  if (!recordRes.ok) {
+    const json = await recordRes.json().catch(() => ({}));
+    throw new Error(json.error ?? "记录分片失败");
+  }
 }
 
 async function uploadChunkWithRetry(
@@ -38,18 +98,12 @@ async function uploadChunkWithRetry(
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (signal?.aborted) throw new DOMException("aborted", "AbortError");
     try {
-      const res = await fetch(`/api/uploads/${sessionId}/parts/${partNo}`, {
-        method: "PUT",
-        body: chunk,
-        signal,
-      });
-      if (res.ok) return;
-      if (res.status === 410) {
-        // 会话过期/不存在，重试没意义
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.error ?? "上传会话已失效，请重新开始");
+      try {
+        await directUploadChunk(sessionId, partNo, chunk, signal);
+      } catch {
+        await relayUploadChunk(sessionId, partNo, chunk, signal);
       }
-      lastError = new Error(`分片 ${partNo} 上传失败（HTTP ${res.status}）`);
+      return;
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") throw err;
       lastError = err;
@@ -106,23 +160,36 @@ export async function uploadEpisodeFile(
     totalBytes: file.size,
   });
 
-  for (let partNo = 1; partNo <= totalChunks; partNo++) {
-    if (alreadyUploaded.has(partNo)) continue;
+  const pendingPartNumbers = Array.from({ length: totalChunks }, (_, i) => i + 1).filter(
+    (partNo) => !alreadyUploaded.has(partNo),
+  );
+  let cursor = 0;
 
-    const start = (partNo - 1) * chunkSize;
-    const end = Math.min(start + chunkSize, file.size);
-    const chunk = file.slice(start, end);
+  async function uploadNextChunk(): Promise<void> {
+    while (cursor < pendingPartNumbers.length) {
+      const partNo = pendingPartNumbers[cursor++];
+      if (partNo === undefined) return;
+      const start = (partNo - 1) * chunkSize;
+      const end = Math.min(start + chunkSize, file.size);
+      const chunk = file.slice(start, end);
 
-    await uploadChunkWithRetry(sessionId, partNo, chunk, opts.signal);
+      await uploadChunkWithRetry(sessionId, partNo, chunk, opts.signal);
 
-    alreadyUploaded.add(partNo);
-    opts.onProgress?.({
-      uploadedChunks: alreadyUploaded.size,
-      totalChunks,
-      bytesUploaded: Math.min(alreadyUploaded.size * chunkSize, file.size),
-      totalBytes: file.size,
-    });
+      alreadyUploaded.add(partNo);
+      opts.onProgress?.({
+        uploadedChunks: alreadyUploaded.size,
+        totalChunks,
+        bytesUploaded: Math.min(alreadyUploaded.size * chunkSize, file.size),
+        totalBytes: file.size,
+      });
+    }
   }
+
+  await Promise.all(
+    Array.from({ length: Math.min(PARALLEL_UPLOADS, pendingPartNumbers.length) }, () =>
+      uploadNextChunk(),
+    ),
+  );
 
   const completeRes = await fetch(`/api/uploads/${sessionId}/complete`, {
     method: "POST",

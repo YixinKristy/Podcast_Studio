@@ -2,9 +2,25 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db/database.types";
 
 export const MONTHLY_QUOTA_LIMIT = 4;
+export const UNLIMITED_QUOTA_EMAILS = new Set(["syx@qq.com"]);
 
 function firstOfMonth(date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+export function isUnlimitedQuotaEmail(email: string | null | undefined): boolean {
+  return !!email && UNLIMITED_QUOTA_EMAILS.has(email.trim().toLowerCase());
+}
+
+async function isUnlimitedQuotaUser(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.from("users").select("email").eq("id", userId).single();
+  if (error) {
+    throw new Error(`读取用户额度权限失败: ${error.message}`);
+  }
+  return isUnlimitedQuotaEmail(data.email);
 }
 
 export async function getUsedQuota(
@@ -37,6 +53,10 @@ export async function deductQuotaForGeneration(
   episodeId: string,
   attemptId: string,
 ): Promise<DeductResult> {
+  if (await isUnlimitedQuotaUser(supabase, userId)) {
+    return { ok: true };
+  }
+
   const used = await getUsedQuota(supabase, userId);
   if (used >= MONTHLY_QUOTA_LIMIT) {
     return { ok: false, reason: "insufficient_quota" };
@@ -68,6 +88,8 @@ export async function refundQuotaForFailure(
   attemptId: string,
   reason: "transcribe_failed" | "no_voice",
 ): Promise<void> {
+  if (await isUnlimitedQuotaUser(supabase, userId)) return;
+
   const { error } = await supabase.from("quota_ledger").upsert(
     {
       user_id: userId,

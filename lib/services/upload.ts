@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOssClient, buildEpisodeObjectKey } from "@/lib/storage/oss";
 import type { Database } from "@/lib/db/database.types";
 
-export const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB，留够余量给 serverless 请求体上限
+// 线上 Vercel 在 iad1，OSS 在北京。4MB 分片经服务端转传时遇到过 ali-oss 60s
+// ResponseTimeoutError，导致用户一直卡在 0%。先把单片压小，后续再升级为浏览器直传 OSS。
+export const CHUNK_SIZE = 512 * 1024;
 export const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB，见 docs/05 P2
 export const MAX_DURATION_SECONDS = 2 * 60 * 60; // 2h，说话人分离限制（docs/12 ★1）
 export const ACCEPTED_EXTENSIONS = ["mp3", "m4a", "wav", "aac", "mp4"]; // mp4 用于兜底 C10（视频容器）
@@ -70,17 +72,24 @@ export async function initUpload(
   const totalChunks = Math.ceil(input.fileSize / CHUNK_SIZE);
 
   if (existingSession) {
-    const { data: parts } = await supabase
-      .from("upload_parts")
-      .select("part_no")
-      .eq("upload_session_id", existingSession.id);
-    return {
-      kind: "resume",
-      sessionId: existingSession.id,
-      uploadedPartNumbers: (parts ?? []).map((p) => p.part_no),
-      chunkSize: existingSession.chunk_size,
-      totalChunks: existingSession.total_chunks,
-    };
+    if (existingSession.chunk_size !== CHUNK_SIZE) {
+      await supabase
+        .from("upload_sessions")
+        .update({ status: "aborted" })
+        .eq("id", existingSession.id);
+    } else {
+      const { data: parts } = await supabase
+        .from("upload_parts")
+        .select("part_no")
+        .eq("upload_session_id", existingSession.id);
+      return {
+        kind: "resume",
+        sessionId: existingSession.id,
+        uploadedPartNumbers: (parts ?? []).map((p) => p.part_no),
+        chunkSize: existingSession.chunk_size,
+        totalChunks: existingSession.total_chunks,
+      };
+    }
   }
 
   const objectKey = buildEpisodeObjectKey(input.showId, input.fileName);

@@ -14,6 +14,14 @@ interface ShownotesPanelProps {
   mentionsMaterial: MaterialRow | null;
 }
 
+function hasChaptersContent(content: unknown): boolean {
+  return (
+    !!content &&
+    typeof content === "object" &&
+    Array.isArray((content as { chapters?: unknown }).chapters)
+  );
+}
+
 // docs/04/05：Shownotes 是分块结构，每块独立生成/独立 reroll/独立版本历史——
 // 四个真正的生成块各自复用 MaterialTab（跟标题/章节/宣传笔记走同一套契约）。
 // 置顶互动问题是 docs/13 加的，05 号 PRD 原来的 5 块没有，跟 Yi 确认过补成第 6 个块。
@@ -44,7 +52,7 @@ export function ShownotesPanel({
 
       <section>
         <h3 className="mb-2 text-sm font-semibold">时间轴章节</h3>
-        {chaptersMaterial?.content ? (
+        {chaptersMaterial?.status === "ready" && hasChaptersContent(chaptersMaterial.content) ? (
           <ContentView type="chapters" content={chaptersMaterial.content} />
         ) : (
           <p className="text-muted-foreground text-sm">章节还没生成，去「章节」Tab 看看</p>

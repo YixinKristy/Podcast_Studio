@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { Database } from "@/lib/db/database.types";
@@ -44,6 +44,10 @@ function secondsSince(isoTime: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(isoTime).getTime()) / 1000));
 }
 
+function invalidContentFallback() {
+  return <p className="text-muted-foreground text-sm">这项内容格式异常，可以重新生成</p>;
+}
+
 // 导出给 ShownotesPanel 复用——章节的只读引用块和 Tab4 里的正式渲染要长一个样，
 // 没道理再抄一遍这段 JSX
 export function ContentView({ type, content }: { type: MaterialType; content: unknown }) {
@@ -51,6 +55,7 @@ export function ContentView({ type, content }: { type: MaterialType; content: un
 
   if (type === "title") {
     const c = content as TitleContent;
+    if (!Array.isArray(c.candidates)) return invalidContentFallback();
     return (
       <div className="space-y-2">
         {c.candidates.map((cand, i) => (
@@ -68,11 +73,13 @@ export function ContentView({ type, content }: { type: MaterialType; content: un
 
   if (type === "shownotes_intro") {
     const c = content as ShownotesIntroContent;
+    if (typeof c.intro !== "string") return invalidContentFallback();
     return <p className="text-sm">{c.intro}</p>;
   }
 
   if (type === "shownotes_guest_intro") {
     const c = content as ShownotesGuestIntroContent;
+    if (typeof c.guestIntro !== "string") return invalidContentFallback();
     if (!c.guestIntro) {
       return <p className="text-muted-foreground text-sm">（本期没有嘉宾）</p>;
     }
@@ -81,6 +88,7 @@ export function ContentView({ type, content }: { type: MaterialType; content: un
 
   if (type === "shownotes_mentions") {
     const c = content as ShownotesMentionsContent;
+    if (!Array.isArray(c.mentions)) return invalidContentFallback();
     if (c.mentions.length === 0) {
       return (
         <p className="text-muted-foreground text-sm">
@@ -104,11 +112,13 @@ export function ContentView({ type, content }: { type: MaterialType; content: un
 
   if (type === "shownotes_pinned_question") {
     const c = content as ShownotesPinnedQuestionContent;
+    if (typeof c.pinnedQuestion !== "string") return invalidContentFallback();
     return <p className="text-sm">{c.pinnedQuestion}</p>;
   }
 
   if (type === "chapters") {
     const c = content as ChaptersContent;
+    if (!Array.isArray(c.chapters)) return invalidContentFallback();
     return (
       <ul className="space-y-1 text-sm">
         {c.chapters.map((ch, i) => (
@@ -124,6 +134,7 @@ export function ContentView({ type, content }: { type: MaterialType; content: un
   }
 
   const c = content as NoteContent;
+  if (!Array.isArray(c.hashtags)) return invalidContentFallback();
   return (
     <div className="space-y-2 text-sm">
       <div className="font-medium">{c.title}</div>

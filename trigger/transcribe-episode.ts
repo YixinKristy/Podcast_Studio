@@ -188,21 +188,29 @@ export const transcribeEpisode = task({
 
       const textMaterialTypes = payload.materialTypes.filter((t) => t !== "clips");
       if (textMaterialTypes.length > 0) {
-        await tasks.trigger<typeof generateMaterials>("generate-materials", {
-          episodeId: payload.episodeId,
-          materialTypes: textMaterialTypes,
-        });
+        await tasks.trigger<typeof generateMaterials>(
+          "generate-materials",
+          {
+            episodeId: payload.episodeId,
+            materialTypes: textMaterialTypes,
+          },
+          { ttl: "30m", tags: [`episode:${payload.episodeId}`] },
+        );
       }
       // 切片走单独的任务（要跑 ffmpeg，跟文本物料的同步 LLM 调用不是一回事），
       // 不能塞进 generate-materials 那批 Promise.allSettled 里。
       // downloadUrl/uploadSlots 是 /start 路由（Next.js 侧）提前签好传过来的——
       // 这个任务本身不能 import lib/storage/oss.ts（ali-oss 打包问题）
       if (payload.materialTypes.includes("clips") && payload.clipUploadSlots) {
-        await tasks.trigger<typeof generateClips>("generate-clips", {
-          episodeId: payload.episodeId,
-          downloadUrl: payload.downloadUrl,
-          uploadSlots: payload.clipUploadSlots,
-        });
+        await tasks.trigger<typeof generateClips>(
+          "generate-clips",
+          {
+            episodeId: payload.episodeId,
+            downloadUrl: payload.downloadUrl,
+            uploadSlots: payload.clipUploadSlots,
+          },
+          { ttl: "30m", tags: [`episode:${payload.episodeId}`] },
+        );
       }
 
       return { ok: true, segments: segments.length };

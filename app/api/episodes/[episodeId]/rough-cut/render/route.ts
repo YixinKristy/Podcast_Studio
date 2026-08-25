@@ -50,12 +50,16 @@ export async function POST(
     .update({ render_status: "generating", updated_at: new Date().toISOString() })
     .eq("id", roughCut.id);
 
-  await tasks.trigger<typeof renderRoughCut>("render-rough-cut", {
-    episodeId,
-    downloadUrl,
-    objectKey,
-    uploadUrl,
-  });
+  await tasks.trigger<typeof renderRoughCut>(
+    "render-rough-cut",
+    {
+      episodeId,
+      downloadUrl,
+      objectKey,
+      uploadUrl,
+    },
+    { ttl: "30m", tags: [`episode:${episodeId}`] },
+  );
 
   return NextResponse.json({ ok: true });
 }

@@ -24,12 +24,16 @@ export async function POST(
     // C2/C10：损坏探测 + 视频轨抽音频，异步做，不卡上传完成的响应。
     // trigger 任务不能直接用 ali-oss（见 trigger/validate-upload.ts 顶部注释），传签名 URL 进去。
     const extractedKey = result.objectKey.replace(/\.[^./]+$/, "") + ".audio-extracted.m4a";
-    await tasks.trigger<typeof validateUpload>("validate-upload", {
-      episodeId: result.episodeId,
-      downloadUrl: getSignedDownloadUrl(result.objectKey),
-      extractedUploadUrl: getSignedUploadUrl(extractedKey),
-      extractedObjectKey: extractedKey,
-    });
+    await tasks.trigger<typeof validateUpload>(
+      "validate-upload",
+      {
+        episodeId: result.episodeId,
+        downloadUrl: getSignedDownloadUrl(result.objectKey, 2 * 60 * 60),
+        extractedUploadUrl: getSignedUploadUrl(extractedKey, 2 * 60 * 60),
+        extractedObjectKey: extractedKey,
+      },
+      { ttl: "30m", tags: [`episode:${result.episodeId}`] },
+    );
     return NextResponse.json({ episodeId: result.episodeId });
   } catch (err) {
     if (err instanceof UploadSessionError) {

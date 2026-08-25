@@ -60,16 +60,20 @@ export async function POST(
     ? buildClipUploadSlots(episode.show_id)
     : undefined;
 
-  await tasks.trigger<typeof transcribeEpisode>("transcribe-episode", {
-    episodeId,
-    userId: user.id,
-    attemptId,
-    downloadUrl: clipsDownloadUrl,
-    monoUploadUrl: getSignedUploadUrl(monoObjectKey, 2 * 60 * 60),
-    monoDownloadUrl: getSignedDownloadUrl(monoObjectKey, 2 * 60 * 60),
-    materialTypes,
-    clipUploadSlots,
-  });
+  await tasks.trigger<typeof transcribeEpisode>(
+    "transcribe-episode",
+    {
+      episodeId,
+      userId: user.id,
+      attemptId,
+      downloadUrl: clipsDownloadUrl,
+      monoUploadUrl: getSignedUploadUrl(monoObjectKey, 4 * 60 * 60),
+      monoDownloadUrl: getSignedDownloadUrl(monoObjectKey, 4 * 60 * 60),
+      materialTypes,
+      clipUploadSlots,
+    },
+    { ttl: "30m", tags: [`episode:${episodeId}`, `user:${user.id}`] },
+  );
 
   return NextResponse.json({ ok: true });
 }

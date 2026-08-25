@@ -44,12 +44,16 @@ export async function POST(
     }
     const downloadUrl = getSignedDownloadUrl(objectKeyFromUrl(episode.audio_url), 4 * 60 * 60);
     const uploadSlots = buildClipUploadSlots(episode.show_id);
-    await tasks.trigger<typeof generateClips>("generate-clips", {
-      episodeId,
-      instruction,
-      downloadUrl,
-      uploadSlots,
-    });
+    await tasks.trigger<typeof generateClips>(
+      "generate-clips",
+      {
+        episodeId,
+        instruction,
+        downloadUrl,
+        uploadSlots,
+      },
+      { ttl: "30m", tags: [`episode:${episodeId}`] },
+    );
     return NextResponse.json({ ok: true });
   }
 

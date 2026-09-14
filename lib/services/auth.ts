@@ -45,15 +45,15 @@ export async function signInWithPassword(
     .select("*")
     .eq("email", email)
     .maybeSingle();
+  const attemptsAvailable = !attemptsError;
   if (attemptsError) {
     console.error("读取登录失败计数失败", {
       code: attemptsError.code,
       message: attemptsError.message,
     });
-    return { ok: false, reason: "failed", message: attemptsError.message };
   }
 
-  if (existing?.locked_until && new Date(existing.locked_until) > now) {
+  if (attemptsAvailable && existing?.locked_until && new Date(existing.locked_until) > now) {
     return { ok: false, reason: "locked", retryAfterSeconds: secondsUntil(existing.locked_until) };
   }
 
@@ -61,8 +61,14 @@ export async function signInWithPassword(
 
   if (!error) {
     // 登录成功，清空失败计数
-    if (existing) {
-      await admin.from("auth_login_attempts").delete().eq("email", email);
+    if (attemptsAvailable && existing) {
+      const { error: deleteError } = await admin.from("auth_login_attempts").delete().eq("email", email);
+      if (deleteError) {
+        console.error("清空登录失败计数失败", {
+          code: deleteError.code,
+          message: deleteError.message,
+        });
+      }
     }
     return { ok: true };
   }
@@ -77,6 +83,10 @@ export async function signInWithPassword(
     return { ok: false, reason: "failed", message: error.message };
   }
 
+  if (!attemptsAvailable) {
+    return { ok: false, reason: "invalid_credentials" };
+  }
+
   const windowExpired =
     !existing?.window_started_at ||
     now.getTime() - new Date(existing.window_started_at).getTime() >
@@ -89,23 +99,36 @@ export async function signInWithPassword(
 
   if (nextAttemptCount >= LOCK_AFTER_ATTEMPTS) {
     const lockedUntil = new Date(now.getTime() + LOCK_MINUTES * 60 * 1000).toISOString();
-    await admin.from("auth_login_attempts").upsert({
+    const { error: lockError } = await admin.from("auth_login_attempts").upsert({
       email,
       attempt_count: nextAttemptCount,
       window_started_at: windowStartedAt,
       last_attempt_at: now.toISOString(),
       locked_until: lockedUntil,
     });
+    if (lockError) {
+      console.error("写入登录锁定状态失败", {
+        code: lockError.code,
+        message: lockError.message,
+      });
+      return { ok: false, reason: "invalid_credentials" };
+    }
     return { ok: false, reason: "locked", retryAfterSeconds: LOCK_MINUTES * 60 };
   }
 
-  await admin.from("auth_login_attempts").upsert({
+  const { error: upsertError } = await admin.from("auth_login_attempts").upsert({
     email,
     attempt_count: nextAttemptCount,
     window_started_at: windowStartedAt,
     last_attempt_at: now.toISOString(),
     locked_until: null,
   });
+  if (upsertError) {
+    console.error("写入登录失败计数失败", {
+      code: upsertError.code,
+      message: upsertError.message,
+    });
+  }
 
   return { ok: false, reason: "invalid_credentials" };
 }

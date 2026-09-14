@@ -6,6 +6,15 @@ import type { Database } from "@/lib/db/database.types";
 const APP_ROUTE_PREFIXES = ["/onboarding", "/new", "/e", "/episodes", "/settings"];
 
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const isAppRoute = APP_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+
+  if (!isAppRoute) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient<Database>(
@@ -32,15 +41,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const pathname = request.nextUrl.pathname;
-  const isAppRoute = APP_ROUTE_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-
-  if (!isAppRoute) {
-    return response;
-  }
 
   if (!user) {
     const loginUrl = new URL("/", request.url);

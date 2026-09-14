@@ -40,11 +40,18 @@ export async function signInWithPassword(
   const admin = createAdminClient();
   const now = new Date();
 
-  const { data: existing } = await admin
+  const { data: existing, error: attemptsError } = await admin
     .from("auth_login_attempts")
     .select("*")
     .eq("email", email)
     .maybeSingle();
+  if (attemptsError) {
+    console.error("读取登录失败计数失败", {
+      code: attemptsError.code,
+      message: attemptsError.message,
+    });
+    return { ok: false, reason: "failed", message: attemptsError.message };
+  }
 
   if (existing?.locked_until && new Date(existing.locked_until) > now) {
     return { ok: false, reason: "locked", retryAfterSeconds: secondsUntil(existing.locked_until) };
@@ -61,6 +68,12 @@ export async function signInWithPassword(
   }
 
   if (error.message !== "Invalid login credentials") {
+    console.error("Supabase 登录失败", {
+      name: error.name,
+      status: error.status,
+      code: error.code,
+      message: error.message,
+    });
     return { ok: false, reason: "failed", message: error.message };
   }
 
